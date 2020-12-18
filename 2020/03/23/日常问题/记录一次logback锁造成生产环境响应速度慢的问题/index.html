@@ -1,37 +1,452 @@
-{% extends '_layout.swig' %}
-{% import '_macro/post.swig' as post_template %}
-{% import '_macro/sidebar.swig' as sidebar_template %}
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
 
 
-{% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
 
-{% block page_class %}page-post-detail{% endblock %}
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="问题业务会在每天凌晨进行高强度运算，CPU使用率一直在90%左右。该业务比较特殊，日志量特别大，引入的新组件也会打日志。原本1个小时跑完的业务（大约170w左右的数据量），引入新组件后发现跑完需要3小时。 排查过程该业务主要是消费mq，然后根据mq消息进行rpc调用，查看rpc调用日志发现每次rpc调用时间并没有很长，且服务段和消费端的线程池没有满且基本没有被使用（200 core 仅仅不到10">
+<meta property="og:type" content="article">
+<meta property="og:title" content="记录一次logback锁造成生产环境响应速度慢的问题">
+<meta property="og:url" content="http://yoursite.com/2020/03/23/%E6%97%A5%E5%B8%B8%E9%97%AE%E9%A2%98/%E8%AE%B0%E5%BD%95%E4%B8%80%E6%AC%A1logback%E9%94%81%E9%80%A0%E6%88%90%E7%94%9F%E4%BA%A7%E7%8E%AF%E5%A2%83%E5%93%8D%E5%BA%94%E9%80%9F%E5%BA%A6%E6%85%A2%E7%9A%84%E9%97%AE%E9%A2%98/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="问题业务会在每天凌晨进行高强度运算，CPU使用率一直在90%左右。该业务比较特殊，日志量特别大，引入的新组件也会打日志。原本1个小时跑完的业务（大约170w左右的数据量），引入新组件后发现跑完需要3小时。 排查过程该业务主要是消费mq，然后根据mq消息进行rpc调用，查看rpc调用日志发现每次rpc调用时间并没有很长，且服务段和消费端的线程池没有满且基本没有被使用（200 core 仅仅不到10">
+<meta property="og:locale">
+<meta property="article:published_time" content="2020-03-23T09:04:30.000Z">
+<meta property="article:modified_time" content="2020-11-24T10:30:59.205Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="问题排查">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://yoursite.com/2020/03/23/%E6%97%A5%E5%B8%B8%E9%97%AE%E9%A2%98/%E8%AE%B0%E5%BD%95%E4%B8%80%E6%AC%A1logback%E9%94%81%E9%80%A0%E6%88%90%E7%94%9F%E4%BA%A7%E7%8E%AF%E5%A2%83%E5%93%8D%E5%BA%94%E9%80%9F%E5%BA%A6%E6%85%A2%E7%9A%84%E9%97%AE%E9%A2%98/">
 
 
-{% block content %}
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
 
-  <div id="posts" class="posts-expand">
-    {{ post_template.render(page) }}
+  <title>记录一次logback锁造成生产环境响应速度慢的问题 | Keanu Lee's Blog</title>
+  
 
-    <div class="post-spread">
-      {% if theme.jiathis %}
-        {% include '_partials/share/jiathis.swig' %}
-      {% elseif theme.baidushare %}
-        {% include '_partials/share/baidushare.swig' %}
-      {% elseif theme.add_this_id %}
-        {% include '_partials/share/add-this.swig' %}
-      {% elseif theme.duoshuo_shortname and theme.duoshuo_share %}
-        {% include '_partials/share/duoshuo_share.swig' %}
-      {% endif %}
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
     </div>
   </div>
 
-{% endblock %}
+  <div class="site-meta">
 
-{% block sidebar %}
-  {{ sidebar_template.render(true) }}
-{% endblock %}
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
 
-{% block script_extra %}
-  {% include '_scripts/pages/post-details.swig' %}
-{% endblock %}
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/03/23/%E6%97%A5%E5%B8%B8%E9%97%AE%E9%A2%98/%E8%AE%B0%E5%BD%95%E4%B8%80%E6%AC%A1logback%E9%94%81%E9%80%A0%E6%88%90%E7%94%9F%E4%BA%A7%E7%8E%AF%E5%A2%83%E5%93%8D%E5%BA%94%E9%80%9F%E5%BA%A6%E6%85%A2%E7%9A%84%E9%97%AE%E9%A2%98/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          记录一次logback锁造成生产环境响应速度慢的问题
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-03-23 17:04:30" itemprop="dateCreated datePublished" datetime="2020-03-23T17:04:30+08:00">2020-03-23</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-11-24 18:30:59" itemprop="dateModified" datetime="2020-11-24T18:30:59+08:00">2020-11-24</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="问题"><a href="#问题" class="headerlink" title="问题"></a>问题</h1><p>业务会在每天凌晨进行高强度运算，CPU使用率一直在<code>90%</code>左右。该业务比较特殊，日志量特别大，引入的新组件也会打日志。原本1个小时跑完的业务（大约<code>170w</code>左右的数据量），引入新组件后发现跑完需要<code>3</code>小时。</p>
+<h1 id="排查过程"><a href="#排查过程" class="headerlink" title="排查过程"></a>排查过程</h1><p>该业务主要是消费<code>mq</code>，然后根据<code>mq</code>消息进行<code>rpc</code>调用，查看<code>rpc</code>调用日志发现每次<code>rpc</code>调用时间并没有很长，且服务段和消费端的线程池没有满且基本没有被使用（200 core 仅仅不到10 被使用，30s采样一次），初步确定和<code>rpc</code>性能没有关系。晚上发现该业务的<code>cpu</code>使用率由原本的<code>90</code>下降到几乎只有<code>40</code>，查看<code>mq</code>的<code>provider</code>也没有发现速度变慢，<code>mq</code>的消息被消费的十分的均匀，感觉是限流或者锁。在线上通过<code>jstack</code>配合<code>top -Hp</code>、<code>jstate</code>、<code>jmap</code>等发现并没有gc或者其他的异常，但是发现基本上所有的业务线程都处于<code>WAITING</code>状态，且<code>waiting</code>位置在<code>logback</code>的<code>subAppend</code>上。然后根据情况<code>Google</code>之。查出结果<code>https://jira.qos.ch/browse/LOGBACK-1378</code>,后升级发现问题解决。</p>
+<h1 id="复现问题"><a href="#复现问题" class="headerlink" title="复现问题"></a>复现问题</h1> <a id="more"></a>
+
+<p>由于该问题比较有意思，于是复现下，看下升级的改动，作为以后写代码的注意事项的<code>题库</code></p>
+<p>使用<code>java</code>自带的<code>benchmark</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@BenchmarkMode(Mode.Throughput)</span></span><br><span class="line"><span class="meta">@OutputTimeUnit(TimeUnit.SECONDS)</span></span><br><span class="line"><span class="meta">@State(Scope.Benchmark)</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MainApp</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> Logger loger = LoggerFactory.getLogger(MainApp.class);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">static</span> String str =<span class="string">&quot;&quot;</span>;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String... args)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">    loger.info(<span class="string">&quot;hello&quot;</span>);</span><br><span class="line">    Options opt = <span class="keyword">new</span> OptionsBuilder()</span><br><span class="line">        .warmupIterations(<span class="number">3</span>)</span><br><span class="line">        .forks(<span class="number">1</span>)</span><br><span class="line">        .build();</span><br><span class="line"></span><br><span class="line">    <span class="keyword">new</span> Runner(opt).run();</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line">  <span class="meta">@Benchmark</span></span><br><span class="line">  <span class="meta">@Measurement(iterations = 3)</span></span><br><span class="line">  <span class="meta">@Threads(200)</span></span><br><span class="line">  <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span></span>&#123;</span><br><span class="line">    loger.info(str);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>实验打印4269个字符的字符串（业务日志远超该数），机器为<code>4</code>核<code>16G</code>，<code>2.3GHz</code> 使用1.1.1版本后的结果：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">9464.895</span> ops/s</span><br><span class="line"># Warmup Iteration   2: 15959.602 ops/s</span><br><span class="line"># Warmup Iteration   3: 11163.807 ops/s</span><br><span class="line">Iteration   <span class="number">1</span>: <span class="number">14379.515</span> ops/s</span><br><span class="line">Iteration   <span class="number">2</span>: <span class="number">9783.307</span> ops/s</span><br><span class="line">Iteration   <span class="number">3</span>: <span class="number">9941.090</span> ops/s</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Result <span class="string">&quot;org.example.MainApp.run&quot;</span>:</span><br><span class="line">  <span class="number">11367.970</span> ±(<span class="number">99.9</span>%) <span class="number">47602.740</span> ops/s [Average]</span><br><span class="line">  (min, avg, max) = (<span class="number">9783.307</span>, <span class="number">11367.970</span>, <span class="number">14379.515</span>), stdev = <span class="number">2609.267</span></span><br><span class="line">  CI (<span class="number">99.9</span>%): [≈ <span class="number">0</span>, <span class="number">58970.710</span>] (assumes normal distribution)</span><br></pre></td></tr></table></figure>
+
+<p>当前的<code>jstack</code>文件是:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line">&quot;org.example.MainApp.run-jmh-worker-199&quot; #211 daemon prio=5 os_prio=0 tid=0x00007f3750520000 nid=0x6f96 waiting on condition [0x00007f36adc9b000]</span><br><span class="line">   java.lang.Thread.State: WAITING (parking)</span><br><span class="line">	at sun.misc.Unsafe.park(Native Method)</span><br><span class="line">	- parking to wait <span class="keyword">for</span>  &lt;<span class="number">0x00000006c7c1cc48</span>&gt; (a java.util.concurrent.locks.ReentrantLock$NonfairSync)</span><br><span class="line">	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:<span class="number">175</span>)</span><br><span class="line">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:<span class="number">836</span>)</span><br><span class="line">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireQueued(AbstractQueuedSynchronizer.java:<span class="number">870</span>)</span><br><span class="line">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquire(AbstractQueuedSynchronizer.java:<span class="number">1199</span>)</span><br><span class="line">	at java.util.concurrent.locks.ReentrantLock$NonfairSync.lock(ReentrantLock.java:<span class="number">209</span>)</span><br><span class="line">	at java.util.concurrent.locks.ReentrantLock.lock(ReentrantLock.java:<span class="number">285</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.subAppend(OutputStreamAppender.java:<span class="number">210</span>)</span><br><span class="line">	at ch.qos.logback.core.rolling.RollingFileAppender.subAppend(RollingFileAppender.java:<span class="number">235</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.append(OutputStreamAppender.java:<span class="number">100</span>)</span><br><span class="line">	at ch.qos.logback.core.UnsynchronizedAppenderBase.doAppend(UnsynchronizedAppenderBase.java:<span class="number">84</span>)</span><br><span class="line">	at ch.qos.logback.core.spi.AppenderAttachableImpl.appendLoopOnAppenders(AppenderAttachableImpl.java:<span class="number">51</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.appendLoopOnAppenders(Logger.java:<span class="number">270</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.callAppenders(Logger.java:<span class="number">257</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.buildLoggingEventAndAppend(Logger.java:<span class="number">421</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.filterAndLog_0_Or3Plus(Logger.java:<span class="number">383</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.info(Logger.java:<span class="number">579</span>)</span><br><span class="line">......</span><br><span class="line"></span><br><span class="line">&quot;org.example.MainApp.run-jmh-worker-117&quot; #129 daemon prio=5 os_prio=0 tid=0x00007f3750482800 nid=0x6f44 runnable [0x00007f36b2eed000]</span><br><span class="line">   java.lang.Thread.State: RUNNABLE</span><br><span class="line">	at java.lang.Throwable.getStackTraceElement(Native Method)</span><br><span class="line">	at java.lang.Throwable.getOurStackTrace(Throwable.java:<span class="number">828</span>)</span><br><span class="line">	- locked &lt;<span class="number">0x000000078c2ee6e8</span>&gt; (a java.lang.Throwable)</span><br><span class="line">	at java.lang.Throwable.getStackTrace(Throwable.java:<span class="number">817</span>)</span><br><span class="line">	at ch.qos.logback.classic.spi.CallerData.extract(CallerData.java:<span class="number">60</span>)</span><br><span class="line">	at ch.qos.logback.classic.spi.LoggingEvent.getCallerData(LoggingEvent.java:<span class="number">259</span>)</span><br><span class="line">	at ch.qos.logback.classic.pattern.FileOfCallerConverter.convert(FileOfCallerConverter.java:<span class="number">22</span>)</span><br><span class="line">	at ch.qos.logback.classic.pattern.FileOfCallerConverter.convert(FileOfCallerConverter.java:<span class="number">1</span>)</span><br><span class="line">	at ch.qos.logback.core.pattern.FormattingConverter.write(FormattingConverter.java:<span class="number">36</span>)</span><br><span class="line">	at ch.qos.logback.core.pattern.PatternLayoutBase.writeLoopOnConverters(PatternLayoutBase.java:<span class="number">118</span>)</span><br><span class="line">	at ch.qos.logback.classic.PatternLayout.doLayout(PatternLayout.java:<span class="number">141</span>)</span><br><span class="line">	at ch.qos.logback.classic.PatternLayout.doLayout(PatternLayout.java:<span class="number">1</span>)</span><br><span class="line">	at ch.qos.logback.core.encoder.LayoutWrappingEncoder.doEncode(LayoutWrappingEncoder.java:<span class="number">130</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.writeOut(OutputStreamAppender.java:<span class="number">187</span>)</span><br><span class="line">	at ch.qos.logback.core.FileAppender.writeOut(FileAppender.java:<span class="number">279</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.subAppend(OutputStreamAppender.java:<span class="number">212</span>)</span><br><span class="line">	at ch.qos.logback.core.rolling.RollingFileAppender.subAppend(RollingFileAppender.java:<span class="number">235</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.append(OutputStreamAppender.java:<span class="number">100</span>)</span><br><span class="line">	at ch.qos.logback.core.UnsynchronizedAppenderBase.doAppend(UnsynchronizedAppenderBase.java:<span class="number">84</span>)</span><br><span class="line">	at ch.qos.logback.core.spi.AppenderAttachableImpl.appendLoopOnAppenders(AppenderAttachableImpl.java:<span class="number">51</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.appendLoopOnAppenders(Logger.java:<span class="number">270</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.callAppenders(Logger.java:<span class="number">257</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.buildLoggingEventAndAppend(Logger.java:<span class="number">421</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.filterAndLog_0_Or3Plus(Logger.java:<span class="number">383</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.info(Logger.java:<span class="number">579</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">   Locked ownable synchronizers:</span><br><span class="line">	- &lt;<span class="number">0x00000006c7c1cc48</span>&gt; (a java.util.concurrent.locks.ReentrantLock$NonfairSync)</span><br><span class="line">	- &lt;<span class="number">0x00000006c7d434b0</span>&gt; (a java.util.concurrent.ThreadPoolExecutor$Worker)</span><br></pre></td></tr></table></figure>
+
+<p>大部分线程都锁在了写日志上。切换成1.2.3版本后：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">10619.977</span> ops/s</span><br><span class="line"># Warmup Iteration   2: 12011.402 ops/s</span><br><span class="line"># Warmup Iteration   3: 14763.623 ops/s</span><br><span class="line">Iteration   <span class="number">1</span>: <span class="number">14376.559</span> ops/s</span><br><span class="line">Iteration   <span class="number">2</span>: <span class="number">14020.455</span> ops/s</span><br><span class="line">Iteration   <span class="number">3</span>: <span class="number">14059.007</span> ops/s</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Result <span class="string">&quot;org.example.MainApp.run&quot;</span>:</span><br><span class="line">  <span class="number">14152.007</span> ±(<span class="number">99.9</span>%) <span class="number">3565.205</span> ops/s [Average]</span><br><span class="line">  (min, avg, max) = (<span class="number">14020.455</span>, <span class="number">14152.007</span>, <span class="number">14376.559</span>), stdev = <span class="number">195.421</span></span><br><span class="line">  CI (<span class="number">99.9</span>%): [<span class="number">10586.802</span>, <span class="number">17717.212</span>] (assumes normal distribution)</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>对应的<code>stack</code>日志</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">&quot;org.example.MainApp.run-jmh-worker-45&quot; #56 daemon prio=5 os_prio=0 tid=0x00007f2e5c36d800 nid=0x7923 waiting on condition [0x00007f2dea7e5000]</span><br><span class="line">   java.lang.Thread.State: WAITING (parking)</span><br><span class="line">	at sun.misc.Unsafe.park(Native Method)</span><br><span class="line">	- parking to wait <span class="keyword">for</span>  &lt;<span class="number">0x00000006c7c20c50</span>&gt; (a java.util.concurrent.locks.ReentrantLock$NonfairSync)</span><br><span class="line">	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:<span class="number">175</span>)</span><br><span class="line">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:<span class="number">836</span>)</span><br><span class="line">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireQueued(AbstractQueuedSynchronizer.java:<span class="number">870</span>)</span><br><span class="line">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquire(AbstractQueuedSynchronizer.java:<span class="number">1199</span>)</span><br><span class="line">	at java.util.concurrent.locks.ReentrantLock$NonfairSync.lock(ReentrantLock.java:<span class="number">209</span>)</span><br><span class="line">	at java.util.concurrent.locks.ReentrantLock.lock(ReentrantLock.java:<span class="number">285</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.writeBytes(OutputStreamAppender.java:<span class="number">197</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.subAppend(OutputStreamAppender.java:<span class="number">231</span>)</span><br><span class="line">	at ch.qos.logback.core.rolling.RollingFileAppender.subAppend(RollingFileAppender.java:<span class="number">235</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.append(OutputStreamAppender.java:<span class="number">102</span>)</span><br><span class="line">	at ch.qos.logback.core.UnsynchronizedAppenderBase.doAppend(UnsynchronizedAppenderBase.java:<span class="number">84</span>)</span><br><span class="line">	at ch.qos.logback.core.spi.AppenderAttachableImpl.appendLoopOnAppenders(AppenderAttachableImpl.java:<span class="number">51</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.appendLoopOnAppenders(Logger.java:<span class="number">270</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.callAppenders(Logger.java:<span class="number">257</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.buildLoggingEventAndAppend(Logger.java:<span class="number">421</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.filterAndLog_0_Or3Plus(Logger.java:<span class="number">383</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.info(Logger.java:<span class="number">579</span>)</span><br><span class="line">	</span><br><span class="line">	......</span><br><span class="line">        </span><br><span class="line">&quot;org.example.MainApp.run-jmh-worker-46&quot; #57 daemon prio=5 os_prio=0 tid=0x00007f2e5c36f800 nid=0x7924 runnable [0x00007f2dea6e5000]</span><br><span class="line">   java.lang.Thread.State: RUNNABLE</span><br><span class="line">	at java.io.FileOutputStream.writeBytes(Native Method)</span><br><span class="line">	at java.io.FileOutputStream.write(FileOutputStream.java:<span class="number">326</span>)</span><br><span class="line">	at java.io.BufferedOutputStream.flushBuffer(BufferedOutputStream.java:<span class="number">82</span>)</span><br><span class="line">	at java.io.BufferedOutputStream.flush(BufferedOutputStream.java:<span class="number">140</span>)</span><br><span class="line">	- locked &lt;<span class="number">0x00000007bda42580</span>&gt; (a java.io.BufferedOutputStream)</span><br><span class="line">	at ch.qos.logback.core.recovery.ResilientOutputStreamBase.flush(ResilientOutputStreamBase.java:<span class="number">79</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.writeBytes(OutputStreamAppender.java:<span class="number">201</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.subAppend(OutputStreamAppender.java:<span class="number">231</span>)</span><br><span class="line">	at ch.qos.logback.core.rolling.RollingFileAppender.subAppend(RollingFileAppender.java:<span class="number">235</span>)</span><br><span class="line">	at ch.qos.logback.core.OutputStreamAppender.append(OutputStreamAppender.java:<span class="number">102</span>)</span><br><span class="line">	at ch.qos.logback.core.UnsynchronizedAppenderBase.doAppend(UnsynchronizedAppenderBase.java:<span class="number">84</span>)</span><br><span class="line">	at ch.qos.logback.core.spi.AppenderAttachableImpl.appendLoopOnAppenders(AppenderAttachableImpl.java:<span class="number">51</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.appendLoopOnAppenders(Logger.java:<span class="number">270</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.callAppenders(Logger.java:<span class="number">257</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.buildLoggingEventAndAppend(Logger.java:<span class="number">421</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.filterAndLog_0_Or3Plus(Logger.java:<span class="number">383</span>)</span><br><span class="line">	at ch.qos.logback.classic.Logger.info(Logger.java:<span class="number">579</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">   Locked ownable synchronizers:</span><br><span class="line">	- &lt;<span class="number">0x00000006c7c20c50</span>&gt; (a java.util.concurrent.locks.ReentrantLock$NonfairSync)</span><br><span class="line">	- &lt;<span class="number">0x00000006c7d00568</span>&gt; (a java.util.concurrent.ThreadPoolExecutor$Worker)</span><br></pre></td></tr></table></figure>
+
+<p>锁一直是存在的，只是说后者的锁的时间比前面的要久很多，导致整个系统慢。</p>
+<p>通过堆栈可以看到，两则之间最大的区别是<code>1.1.11</code>版本的<code>lock</code>是直接锁在<code>subAppend</code>上，但是<code>1.2.3</code>则是锁在<code>writeBytes</code>上。</p>
+<p>查看该类中的源码修改(logback  1.1.11) ：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">ch.qos.logback.core.OutputStreamAppender.subAppend(E event)  <span class="number">202</span>行</span><br><span class="line"></span><br><span class="line">           <span class="comment">// this step avoids LBCLASSIC-139</span></span><br><span class="line">            <span class="keyword">if</span> (event <span class="keyword">instanceof</span> DeferredProcessingAware) &#123;</span><br><span class="line">                ((DeferredProcessingAware) event).prepareForDeferredProcessing();</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// the synchronization prevents the OutputStream from being closed while we</span></span><br><span class="line">            <span class="comment">// are writing. It also prevents multiple threads from entering the same</span></span><br><span class="line">            <span class="comment">// converter. Converters assume that they are in a synchronized block.</span></span><br><span class="line">            lock.lock();</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                writeOut(event);</span><br><span class="line">            &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">                lock.unlock();</span><br><span class="line">            &#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中<code>writeOut</code>包含的操作为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">this</span>.encoder.doEncode(event);</span><br></pre></td></tr></table></figure>
+
+
+
+<p><code>1.2.3</code>修改为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">ch.qos.logback.core.OutputStreamAppender.subAppend(E event)   <span class="number">222</span>行</span><br><span class="line">         <span class="comment">// the synchronization prevents the OutputStream from being closed while we</span></span><br><span class="line">         <span class="comment">// are writing. It also prevents multiple threads from entering the same</span></span><br><span class="line">         <span class="comment">// converter. Converters assume that they are in a synchronized block.</span></span><br><span class="line">         <span class="comment">// lock.lock();</span></span><br><span class="line"></span><br><span class="line">         <span class="keyword">byte</span>[] byteArray = <span class="keyword">this</span>.encoder.encode(event);</span><br><span class="line">         writeBytes(byteArray);</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>其中<code>writeBytes</code>包含的操作为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span>(byteArray == <span class="keyword">null</span> || byteArray.length == <span class="number">0</span>)</span><br><span class="line">         <span class="keyword">return</span>;</span><br><span class="line">     </span><br><span class="line">     lock.lock();</span><br><span class="line">     <span class="keyword">try</span> &#123;</span><br><span class="line">         <span class="keyword">this</span>.outputStream.write(byteArray);</span><br><span class="line">         <span class="keyword">if</span> (immediateFlush) &#123;</span><br><span class="line">             <span class="keyword">this</span>.outputStream.flush();</span><br><span class="line">         &#125;</span><br><span class="line">     &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">         lock.unlock();</span><br><span class="line">     &#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>两个版本中的其中<code>encoder</code>方法做了如日志前面加上时间戳等等<code>xml</code>文件中的配置。猜测为将日志格式化的动作增加了锁的时间，于是修改<code>1.1.11</code>版本的代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">ch.qos.logback.core.encoder.LayoutWrappingEncoder.doEncode(E event) <span class="number">130</span>行</span><br><span class="line"></span><br><span class="line">        String txt = layout.doLayout(event);</span><br><span class="line">        <span class="keyword">byte</span>[] bytes=convertToBytes(txt);</span><br><span class="line">        writeLock.lock();</span><br><span class="line">        outputStream.write(bytes);</span><br><span class="line">        writeLock.unlock();</span><br><span class="line">    </span><br></pre></td></tr></table></figure>
+
+<p>运行后的压测结果为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">15699.433</span> ops/s</span><br><span class="line"># Warmup Iteration   2: 14939.739 ops/s</span><br><span class="line"># Warmup Iteration   3: 14455.396 ops/s</span><br><span class="line">Iteration   <span class="number">1</span>: <span class="number">15854.904</span> ops/s</span><br><span class="line">Iteration   <span class="number">2</span>: <span class="number">15555.632</span> ops/s</span><br><span class="line">Iteration   <span class="number">3</span>: <span class="number">16404.534</span> ops/s</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Result <span class="string">&quot;org.example.MainApp.run&quot;</span>:</span><br><span class="line">  <span class="number">15938.357</span> ±(<span class="number">99.9</span>%) <span class="number">7855.025</span> ops/s [Average]</span><br><span class="line">  (min, avg, max) = (<span class="number">15555.632</span>, <span class="number">15938.357</span>, <span class="number">16404.534</span>), stdev = <span class="number">430.560</span></span><br><span class="line">  CI (<span class="number">99.9</span>%): [<span class="number">8083.331</span>, <span class="number">23793.382</span>] (assumes normal distribution)</span><br></pre></td></tr></table></figure>
+
+<p>仍然是有锁的:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">org.example.MainApp.run-jmh-worker-<span class="number">115</span><span class="string">&quot; #127 daemon prio=5 os_prio=0 tid=0x00007face43ef800 nid=0xe09 waiting on condition [0x00007fac454d3000]</span></span><br><span class="line"><span class="string">   java.lang.Thread.State: WAITING (parking)</span></span><br><span class="line"><span class="string">	at sun.misc.Unsafe.park(Native Method)</span></span><br><span class="line"><span class="string">	- parking to wait for  &lt;0x00000006c7cabd58&gt; (a java.util.concurrent.locks.ReentrantLock$NonfairSync)</span></span><br><span class="line"><span class="string">	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:175)</span></span><br><span class="line"><span class="string">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.parkAndCheckInterrupt(AbstractQueuedSynchronizer.java:836)</span></span><br><span class="line"><span class="string">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquireQueued(AbstractQueuedSynchronizer.java:870)</span></span><br><span class="line"><span class="string">	at java.util.concurrent.locks.AbstractQueuedSynchronizer.acquire(AbstractQueuedSynchronizer.java:1199)</span></span><br><span class="line"><span class="string">	at java.util.concurrent.locks.ReentrantLock$NonfairSync.lock(ReentrantLock.java:209)</span></span><br><span class="line"><span class="string">	at java.util.concurrent.locks.ReentrantLock.lock(ReentrantLock.java:285)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.encoder.LayoutWrappingEncoder.doEncode(LayoutWrappingEncoder.java:133)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.OutputStreamAppender.writeOut(OutputStreamAppender.java:187)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.FileAppender.writeOut(FileAppender.java:279)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.OutputStreamAppender.subAppend(OutputStreamAppender.java:212)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.rolling.RollingFileAppender.subAppend(RollingFileAppender.java:235)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.OutputStreamAppender.append(OutputStreamAppender.java:100)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.UnsynchronizedAppenderBase.doAppend(UnsynchronizedAppenderBase.java:84)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.core.spi.AppenderAttachableImpl.appendLoopOnAppenders(AppenderAttachableImpl.java:51)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.classic.Logger.appendLoopOnAppenders(Logger.java:270)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.classic.Logger.callAppenders(Logger.java:257)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.classic.Logger.buildLoggingEventAndAppend(Logger.java:421)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.classic.Logger.filterAndLog_0_Or3Plus(Logger.java:383)</span></span><br><span class="line"><span class="string">	at ch.qos.logback.classic.Logger.info(Logger.java:579)</span></span><br></pre></td></tr></table></figure>
+
+
+
+<h1 id="回顾"><a href="#回顾" class="headerlink" title="回顾"></a>回顾</h1><p>该问题的情况作者说是由于打印了<code>console</code>的日志。但是我们的业务方十分极端的打印很多日志在同一个文件中，还加上压缩等等。造成系统高负荷运转。且大部分时间都是在排队打日志。虽然同样都加了锁，但是锁的位置和颗粒度十分重要。本文没有完全复现业务问题，所以当前的性能并没有断崖式下跌，不过就堆栈情况来看，应该是差不多的。</p>
+<ul>
+<li><p>锁的粒度要注意，写代码应该尽量到最小的粒度，上面个人觉得就是锁的粒度<code>1.1.11</code>版本中有些粗，将写日志之前不会存在竞争的情况也锁起来。虽然该操作不是特别耗时，但是在极端情况下还是会影响性能。</p>
+</li>
+<li><p>写日志的时候尽量使用异步日志</p>
+</li>
+<li><p>日志的打印不应该倾向与大而全，就像写小说一样，应该一眼能够定位出问题，才是日志的本来作用，本次业务日志量虽然大，但是前期通过业务日志排查的时候，噪音太多，浪费时间和计算机资源</p>
+</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E9%97%AE%E9%A2%98%E6%8E%92%E6%9F%A5/" rel="tag"># 问题排查</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/03/12/java%E7%BA%BF%E7%A8%8B%E6%B1%A0%E8%BF%90%E8%A1%8C%E5%8E%9F%E7%90%86/" rel="prev" title="java线程池运行原理">
+      <i class="fa fa-chevron-left"></i> java线程池运行原理
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/04/25/netty%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%9E%8B/" rel="next" title="netty的线程模型">
+      netty的线程模型 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%97%AE%E9%A2%98"><span class="nav-number">1.</span> <span class="nav-text">问题</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8E%92%E6%9F%A5%E8%BF%87%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">排查过程</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%A4%8D%E7%8E%B0%E9%97%AE%E9%A2%98"><span class="nav-number">3.</span> <span class="nav-text">复现问题</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9B%9E%E9%A1%BE"><span class="nav-number">4.</span> <span class="nav-text">回顾</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

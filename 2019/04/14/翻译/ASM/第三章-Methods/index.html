@@ -1,37 +1,535 @@
-{% extends '_layout.swig' %}
-{% import '_macro/post.swig' as post_template %}
-{% import '_macro/sidebar.swig' as sidebar_template %}
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
 
 
-{% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
 
-{% block page_class %}page-post-detail{% endblock %}
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="3 Methods 方法本章将解释如何使用ASM的API来创建或者转换编译后的java方法。首先会介绍解析后的Method结构，然后通过举例的方式介绍ASM的用于生成、转换他们的ASM接口、组件和工具。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="第三章-Methods">
+<meta property="og:url" content="http://yoursite.com/2019/04/14/%E7%BF%BB%E8%AF%91/ASM/%E7%AC%AC%E4%B8%89%E7%AB%A0-Methods/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="3 Methods 方法本章将解释如何使用ASM的API来创建或者转换编译后的java方法。首先会介绍解析后的Method结构，然后通过举例的方式介绍ASM的用于生成、转换他们的ASM接口、组件和工具。">
+<meta property="og:locale">
+<meta property="og:image" content="http://yoursite.com/images/asm/3/3.1%E6%89%A7%E8%A1%8C%E4%B8%AD%E7%9A%84%E4%B8%89%E4%B8%AA%E6%A0%88%E5%B8%A7.png">
+<meta property="og:image" content="http://yoursite.com/images/asm/3/3.2%E6%96%B9%E6%B3%95%E6%89%A7%E8%A1%8C%E7%9A%84%E6%A0%88%E5%B8%A7%E8%BF%9E%E7%BB%AD%E7%8A%B6%E6%80%81.png">
+<meta property="og:image" content="http://yoursite.com/images/asm/3/3.3set%E6%96%B9%E6%B3%95%E7%9A%84%E6%A0%88%E5%B8%A7%E7%9A%84%E8%BF%9E%E7%BB%AD%E7%8A%B6%E6%80%81.png">
+<meta property="article:published_time" content="2019-04-14T05:22:27.000Z">
+<meta property="article:modified_time" content="2020-12-14T06:00:56.948Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="ASM 翻译">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/asm/3/3.1%E6%89%A7%E8%A1%8C%E4%B8%AD%E7%9A%84%E4%B8%89%E4%B8%AA%E6%A0%88%E5%B8%A7.png">
+
+<link rel="canonical" href="http://yoursite.com/2019/04/14/%E7%BF%BB%E8%AF%91/ASM/%E7%AC%AC%E4%B8%89%E7%AB%A0-Methods/">
 
 
-{% block content %}
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
 
-  <div id="posts" class="posts-expand">
-    {{ post_template.render(page) }}
+  <title>第三章-Methods | Keanu Lee's Blog</title>
+  
 
-    <div class="post-spread">
-      {% if theme.jiathis %}
-        {% include '_partials/share/jiathis.swig' %}
-      {% elseif theme.baidushare %}
-        {% include '_partials/share/baidushare.swig' %}
-      {% elseif theme.add_this_id %}
-        {% include '_partials/share/add-this.swig' %}
-      {% elseif theme.duoshuo_shortname and theme.duoshuo_share %}
-        {% include '_partials/share/duoshuo_share.swig' %}
-      {% endif %}
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
     </div>
   </div>
 
-{% endblock %}
+  <div class="site-meta">
 
-{% block sidebar %}
-  {{ sidebar_template.render(true) }}
-{% endblock %}
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
 
-{% block script_extra %}
-  {% include '_scripts/pages/post-details.swig' %}
-{% endblock %}
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/04/14/%E7%BF%BB%E8%AF%91/ASM/%E7%AC%AC%E4%B8%89%E7%AB%A0-Methods/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          第三章-Methods
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-04-14 13:22:27" itemprop="dateCreated datePublished" datetime="2019-04-14T13:22:27+08:00">2019-04-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-12-14 14:00:56" itemprop="dateModified" datetime="2020-12-14T14:00:56+08:00">2020-12-14</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%BF%BB%E8%AF%91/" itemprop="url" rel="index"><span itemprop="name">翻译</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="3-Methods-方法"><a href="#3-Methods-方法" class="headerlink" title="3 Methods 方法"></a>3 Methods 方法</h1><p>本章将解释如何使用ASM的API来创建或者转换编译后的java方法。首先会介绍解析后的<code>Method</code>结构，然后通过举例的方式介绍ASM的用于生成、转换他们的ASM接口、组件和工具。</p>
+<a id="more"></a>
+<h2 id="3-1-Structure"><a href="#3-1-Structure" class="headerlink" title="3.1 Structure"></a>3.1 Structure</h2><p>在编译后的class文件里，方法表现为字节码的序列。了解方法是如何工作的对于生成和转换他们十分重要。下面的章节的描述对于简单的生成和转换是足够了，需要知道更多的信息请查看JVM规范。</p>
+<h3 id="3-1-1-Execution-model-执行模型"><a href="#3-1-1-Execution-model-执行模型" class="headerlink" title="3.1.1 Execution model 执行模型"></a>3.1.1 Execution model 执行模型</h3><p>在介绍操作码之前，先了解下jvm的执行模型是十分有必要的。如你所知，java的代码是在线程中执行的。每一个线程都有他自己的由<code>frame</code>（栈帧）组成的线程执行栈.每一个栈帧用来变现方法的执行：每当方法被调用，就会创建一个新的栈帧，然后会被压入（<code>push</code>）当前线程执行栈。当方法返回的时候，无论是正常返回还是抛出了异常，当前栈帧就会从线程执行栈中推出（pop）。然后继续执行栈帧在线程栈顶部的方法。<br>每一个栈帧包含两部分，局部变量表（local variables）和操作数栈（operand stack）。局部变量表包含了可以按照数组<code>index</code>进行访问的变量，按照随机的顺序（这里有困惑，倒是是查找可以随机还是存储是随机的，应该是可以按随机顺序访问，存储的时候应该是按照定义的顺序）。操作数栈，顾名思义，就是栈用来操作变量的操作码。这意味着当前栈中的值只能按照后进先出的顺序（Last In First Out）。不要混淆操作数栈和线程运行时栈：每一个栈帧包含了属于他的操作数栈。<br>局部变量表和操作数栈的大小区别与源代码。他们的大小是在编译期计算并和操作码一起存储在编译后的class文件中。所有因一个方法调用而参数的栈帧具有相同的局部变量表和操作数栈，但是不同的方法具有不同的局部变量表和操作数栈。<br><img src="/images/asm/3/3.1%E6%89%A7%E8%A1%8C%E4%B8%AD%E7%9A%84%E4%B8%89%E4%B8%AA%E6%A0%88%E5%B8%A7.png" alt="图3.1 三个运行时栈帧" title="图3.1 三个运行时栈帧"><br>图3.1 是三个运行时栈帧的示例。第一个栈帧包含了三个局部变量，他的操作数栈最大可以是4，现在包含了两个操作码。第二个栈帧最大为3，现在包含了两个值。最后一个栈帧在当前线程运行栈的栈顶，包含了四个局部变量和两个操作码。<br>当一个栈帧被创建的时候，一个栈帧初始化为空的栈，他的局部变量表初始化为一个目标类的this（对于非静态方法）和方法的参数。例如调用<code>a.equals(b)</code>方法的时候会创建一个空栈和两个参数分别为<code>a</code>和<code>b</code>的参数(其他的参数还没有被创建)。ps:我使用ASM的idea插件查看Object的方法，发现都没有传入<code>this</code>，但是都会有<code>ALOAD 0</code>这个指令。<br>在局部变量和操作数栈的每一个槽位（slot）都可以放入除了<code>long</code>和<code>dubbo</code>类型的java类型。因为<code>long</code>和<code>dubbo</code>会需要64位，但是一个槽位默认是使用32位表示。这种形式让局部变量表复杂化了：因为第i个局部变量表里面的值不一定是存在表的第i个卡槽里。例如<code>Math.max(1L, 2L)</code>会创建一个占据第一个和第二个槽位的<code>1L</code>,然后第三个和第四个槽位用来存储<code>2L</code>.</p>
+<h3 id="3-1-2-Bytecode-instructions-字节码指令"><a href="#3-1-2-Bytecode-instructions-字节码指令" class="headerlink" title="3.1.2 Bytecode instructions 字节码指令"></a>3.1.2 Bytecode instructions 字节码指令</h3><p>字节码指令由识别该指令的操作码和固定大小的参数构成：</p>
+<ul>
+<li>操作码是由无符号字节——如他的名字一样——并由助记符号标识。例如，操作码<code>0</code>由助记字符<code>NOP</code>表示，应对与什么都不做的指令。</li>
+<li>参数用于定义精确指令行为的静态值。他们紧跟着操作码。例如：<code>GOTO label</code>指令，他的操作码是<code>167  </code>,携带参数<code>label</code>，这个<code>label</code>指明接下来要执行的指令。指令参数和指令操作数一定不能搞混淆：指令参数是静态的，在编译器就已经确定和保存在class文件中的，而指令操作数是运行时从操作数栈获取的。</li>
+</ul>
+<p>字节码指令可以分为两个中，一中用于从局部变量表转换值到操作数栈的无重复集合(set),或者反向操作（也就是将局部变量表示的值压入栈进行操作，或者将栈中的值重新传入局部变量表）；另外一种仅仅使用在栈中：他们将某些值从栈中推出，然后基于这些值进行运算，然后将运算结果推回栈中。</p>
+<p>这些<code>ILOAD</code>,<code>LLOAD</code>,<code>FLOAD</code>,<code>DLOAD</code>和<code>ALOAD</code>指令从局部变量表中获取值然后将它压入栈中。他们必须读取局部变量表下标为<code>i</code>的值作为参数。<code>ILOAD</code>用于载入一个<code>boolean</code>,<code>byte</code>, <code>char</code>, <code>short</code>或者 <code>int</code>类型的局部变量。 <code>LLOAD</code>,<code>FLOAD</code> 和 <code>DLOAD</code>用于载入一个<code>long</code>, <code>float</code> 或者 <code>double</code>值，后者会载入下标为<code>i</code>和<code>i+1</code>的两个卡槽的值。最后<code>ALOAD</code>用于载入非基本类型的值，例如，一个对象或者数组。于此相对的是,<code>ISTORE</code>, <code>LSTORE</code>,<code>FSTORE</code>, <code>DSTORE</code>和<code>ASTORE</code>会将当前的值从栈中推出来存入对应下标<code>i</code>的局部变量表中。</p>
+<p>如你所见<code>xLOAD</code> 和 <code>xSTORE</code>指令都是强类型（typed）的,实际上，你接下来会看到，几乎所有的指令都是携带类型信息的。这样是为了避免非法转换。存入一个参数到局部变量表然后想获取不同类型的值是不合法的。例如，<code>ISTORE 1 ALOAD 1</code>这样的指令序列是不合法的。他会像将在局部变量表<code>1</code>中存储一块实际数据的内存地址,然后将这块地址指向一个对象引用。然而，在局部变量表中存入一个值，该值的类型和局部变量表当前值的类型不一样，这种行为是合法的。这意味着局部变量表中的类型，即当前存储在局部变量表中的类型，是可以在方法运行时动态改变的。（泛型，是你吗？）</p>
+<p>综上所述，其余的字节码指令都只会在栈中被使用，他们可以组合成下面几个部分：</p>
+<ul>
+<li>Stack 指令会在栈中操作数据：<code>POP</code> 将当前栈顶的数据推出，<code>DUP</code> 复制当前栈顶的数据 ，<code>SWAP</code> 推出两个数据然后交换他们的顺序。等等。</li>
+<li>Constants 指令会推入一个常量到当前的操作数栈中： <code>ACONST_NULL</code> 推入 <code>null</code>,  <code>ICONST_0</code>推入一个<code>int</code>类型，值为0.<code>FCONST_0</code>推入<code>0f</code>….,<code>LDC</code>随意的从常量池中推入（cst push）一个<code>int</code>,<code>float</code>,<code>double</code>,<code>String</code>或者<code>class</code>。</li>
+<li>Arithmetic and logic 指令会推出从栈中推出数字并运算后推回栈中。他们没有任何参数<code>xADD</code>, <code>xSUB</code>, <code>xMUL</code>, <code>xDIV</code> 和 <code>xREM</code>用于<code>+</code>,<code>-</code>,<code>*</code>，<code>/</code>和<code>%</code>运算。上面的x可以是<code>I</code>,<code>L</code>,<code>F</code>或者<code>D</code>.类似的，这也有用于<code>int</code>或者<code>long</code>类型的<code>&lt;&lt;</code>,<code>&gt;&gt;</code>,<code>|</code>,<code>&amp;</code>和<code>^</code>。</li>
+<li>Casts 指令会从栈中推出一个参数，将它的值转换成其他的类型，然后推回栈中。对于与Java中的转换表达式。<code>I2F</code>,<code>F2D</code>,<code>L2D</code>,等等。转换数字的值到另外一直类型。<code>CHECKCAST</code> 用于转换引用类型的类型。</li>
+<li>Objects 指令用于创建<code>Class</code>，加锁，测试他们的类型，等。例如，<code>NEW type</code> 指令将一个类型为type的新对象压入栈中（<code>type</code>是内部全量名称）。</li>
+<li>Fields 指令会去读取或者写入域的值。<code>GETFIELD owner name desc</code> 会从栈中推出一个对象引用，然后将它的<code>name</code> 域值压入栈中。<code>PUTFIELD owner name desc</code> 会推出一个值和一个对象的引用，然后将该值放入对象的名为name的域中。上面的两个例子中，对象必须是<code>owner</code>类型，他们的域的类型必须是<code>desc</code>。<code>GETSTATIC</code>和<code>PUTSTATIC</code>同理，只不过他们是针对的静态域。</li>
+<li>Methods 指令会调用方法或者构造器。他们会从栈中推出参数个数个值，加上目标对象的值，然后压入方法执行的返回值。<code>INVOKEVIRTUAL owner name desc</code> 会调用<code>owner</code>类中的<code>name</code>方法，该方法的描述符是<code>desc</code>。<code>INVOKESTATIC</code>用于静态方法，<code>INVOKESPECIAL</code>用于类私有方法或者构造器方法,<code>INVOKEINTERFACE</code>用于调用接口的方法，最后，java 7 以后 <code>INVOKEDYNAMIC</code>用于动态生成的方法（INVOKEDYNAMIC is used for the new dynamic method invocation mechanism）。</li>
+<li>Arrays 指令主要用于读取和写入数组中的值。<code>xALOAD</code>指令推出一个数组的下标，然后将数组中对应下标的值压回栈。<code>xASTORE</code>推出一个值，数组下标和数组，然后将该值存入数组的对于下标位置。这里的<code>x</code>可以是<code>I</code>, <code>L</code>, <code>F</code>, <code>D</code> 或者 <code>A</code>, 也可以是 <code>B</code>, <code>C</code> 或者<code>S</code>.</li>
+<li>Jumps 这些指令可以根据条件或者无条件的跳转到任意指令。他们一般用于<code>if</code>, <code>for</code>, <code>do</code>, <code>while</code>,<code>break</code>和 <code>continue</code> 指令。例如<code>IFEQ label</code>  从栈中推出一个<code>int</code>类型的值，如果该值为<code>0</code>则跳转到<code>label</code>（否则的话，继续执行接下来的指令）。还存在其他的跳转指令，例如<code>IFNE</code>和<code>IFGE</code>。最后<code>TABLESWITCH</code>和<code>TABLESWITCH</code>作用于<code>switch</code>语句。</li>
+<li>Return 最后<code>xRETURN</code> 和 <code>RETURN</code>指令主要用于返回方法的返回值给他的调用方。<code>RETURN</code>作用于<code>void</code>修饰的方法，<code>xRETURN</code>作用于其他的方法。</li>
+</ul>
+<h3 id="3-1-3-Examples"><a href="#3-1-3-Examples" class="headerlink" title="3.1.3. Examples"></a>3.1.3. Examples</h3><p>让我们举几个基础的例子来更加具体的看字节码指令是怎么工作的。相信有下面的一个<code>bean</code>:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> pkg;</span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Bean</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">int</span> f;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">getF</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.f;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setF</span><span class="params">(<span class="keyword">int</span> f)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.f = f;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>getter</code>方法的字节码为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ALOAD <span class="number">0</span></span><br><span class="line">GETFIELD pkg/Bean f I</span><br><span class="line">IRETURN</span><br></pre></td></tr></table></figure>
+<p>第一条指令读取局部变量<code>0</code>,该变量在栈帧创建的时候被初始化为<code>this</code>，然后将该变量压入操作数栈。第二个指令推出这个值，然后将该对象的域<code>f</code>压入栈中。最后一条指令是推出域的值，然后返回给方法的调用方。该方法的栈帧连续状态如图3.2 所示：<br><img src="/images/asm/3/3.2%E6%96%B9%E6%B3%95%E6%89%A7%E8%A1%8C%E7%9A%84%E6%A0%88%E5%B8%A7%E8%BF%9E%E7%BB%AD%E7%8A%B6%E6%80%81.png" alt="图3.2 方法执行过程栈帧的连续状态：a) 初始化状态，b) 执行完 ALOAD 0 和 c) 执行完GETFIELD" title="图3.2 方法执行过程栈帧的连续状态:a) 初始化状态，b) 执行完 ALOAD 0 和 c) 执行完GETFIELD"></p>
+<p><code>setter</code>方法的字节码为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ALOAD <span class="number">0</span></span><br><span class="line">ILOAD <span class="number">1</span></span><br><span class="line">PUTFIELD pkg/Bean f I</span><br><span class="line">RETURN</span><br></pre></td></tr></table></figure>
+<p>和上面一样，第一个指令将<code>this</code>推入操作栈中。第二个指令将局部变量1推入栈中，该值为栈帧创建的时候调用方传入的<code>f</code>参数。第三个指令将当前两个值推出，然后存入该对象<code>int</code>类型的域<code>f</code>.最后一个指令没有在源代码中显示的声明，但是会在编译后的源码中强制定义，用于销毁当前栈帧和返回数据给调用方。连续的栈帧状态如图3.3所示：<br><img src="/images/asm/3/3.3set%E6%96%B9%E6%B3%95%E7%9A%84%E6%A0%88%E5%B8%A7%E7%9A%84%E8%BF%9E%E7%BB%AD%E7%8A%B6%E6%80%81.png" alt="图3.3 set方法执行栈帧的连续状态，a)初始化状态，b)ALOAD执行后，c)执行 ILOAD 1后 和 d) 执行PUETFIELD后" title="图3.3 set方法执行栈帧的连续状态，a)初始化状态，b)ALOAD执行后，c)执行 ILOAD 1后 和 d) 执行PUETFIELD后"><br>如果程序没有定义构造器，<code>Bean</code>类也有一个编译器创建的默认构造器。这个默认的共有构造器被创建为<code>Bean()&#123;super();&#125;</code>.它的字节码操作如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ALOAD <span class="number">0</span></span><br><span class="line">INVOKESPECIAL java/lang/Object &lt;init&gt; ()V</span><br><span class="line">RETURN</span><br></pre></td></tr></table></figure>
+<p>第一个指令将<code>this</code>压入操作栈。第二个指令推出他的值，然后调用<code>Object</code>类定义的<code>&lt;init&gt;</code>方法。这个相当于调用<code>super()</code>方法，调用父级类<code>Object</code>。你可以发现，源码和编译后的代码中的构造器名称是不一样的：编译后的称为<code>&lt;init&gt;</code>，在源码中他们的名称和对于的类名一致。最后的指令返回数据给调用方。<br>现在，让我们来看一个较为复杂的<code>setter</code>方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">checkAndSetF</span><span class="params">(<span class="keyword">int</span> f)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (f &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">this</span>.f = f;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">```  </span><br><span class="line">该方法的操作码为：</span><br><span class="line">```java</span><br><span class="line">        ILOAD <span class="number">1</span></span><br><span class="line">        IFLT label</span><br><span class="line">        ALOAD <span class="number">0</span></span><br><span class="line">        ILOAD <span class="number">1</span></span><br><span class="line">        PUTFIELD pkg/Bean f I</span><br><span class="line">        GOTO end</span><br><span class="line">    label:</span><br><span class="line">        NEW java/lang/IllegalArgumentException</span><br><span class="line">        DUP</span><br><span class="line">        INVOKESPECIAL java/lang/IllegalArgumentException &lt;init&gt; ()V</span><br><span class="line">        ATHROW</span><br><span class="line">    end:</span><br><span class="line">        RETURN</span><br></pre></td></tr></table></figure>
+<p>第一个指令在操作数栈中将局部变量1压入栈，初始化给<code>f</code>。<code>IFLT</code>将前面的值推出栈，并且和<code>0</code>做比较。如果小于<code>LT</code>0，就会跳转到<code>label</code>定义的操作码中，否则什么都不做，继续执行接下来的操作码。接下来的三个操作码和上文中的<code>setF</code>类似。<code>GOTO</code>指令会无条件的跳转到<code>end</code>定义的<code>label</code>中，这里就是一个返回语句。在<code>label</code>和<code>end</code> 之间的语句会抛出一个异常：<code>NEW</code>操作码会抛出一个异常，然后将它压入栈中。<code>DUP</code>指令会复制一份数据到栈中。<code>INVOKESPECIAL</code>指令推出两个数据中的一个，然后调用其中的异常构造器。最后<code>ATHROW</code>指令推出剩下的数据，然后作为异常抛出。（这样执行不会遗留给下一个指令）。</p>
+<h3 id="3-1-4-Exception-handlers"><a href="#3-1-4-Exception-handlers" class="headerlink" title="3.1.4 Exception handlers"></a>3.1.4 Exception handlers</h3><p>没有字节码指令用来抓取异常：除非方法执行的时候指定了抛出异常的时候一定要执行相关联的<code>exception handlers</code>。一个<code>exception handlers</code>和<code>try catch</code>块类似：他有范围，有一系列对应于<code>try</code>代码块的字节码和一个对应于<code>catch</code>代码块的<code>handler</code>。范围由开始和结束标签表示，<code>handler</code>和开始标签一起。例如下面的代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">sleep</span><span class="params">(<span class="keyword">long</span> d)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        Thread.sleep(d);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (InterruptedException e) &#123;</span><br><span class="line">        e.printStackTrace();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>会编译为:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">    TRYCATCHBLOCK <span class="keyword">try</span> <span class="keyword">catch</span> <span class="keyword">catch</span> java/lang/InterruptedException</span><br><span class="line"><span class="keyword">try</span>:</span><br><span class="line">    LLOAD <span class="number">0</span></span><br><span class="line">    INVOKESTATIC java/lang/<span class="function">Thread <span class="title">sleep</span> <span class="params">(J)</span>V</span></span><br><span class="line"><span class="function">    RETURN</span></span><br><span class="line"><span class="function"><span class="keyword">catch</span>:</span></span><br><span class="line"><span class="function">    INVOKEVIRTUAL java/lang/InterruptedException <span class="title">printStackTrace</span> <span class="params">()</span>V</span></span><br><span class="line"><span class="function">    RETURN </span></span><br></pre></td></tr></table></figure>
+<p><code>try</code>和<code>catch</code>之间的代码对应于<code>try</code>代码块，紧跟着<code>catch</code>的对应于<code>catch</code>块。<code>TRYCATCHBLOCK</code>指定了一个<code>exception handler</code>，它的范围包括了<code>try</code>和<code>catch</code>之间的代码块，包含了一个开始于<code>catch</code>模块的<code>handler</code>，他的异常是<code>InterruptedException</code>的子类。这意味着，如果在<code>try</code>和<code>catch</code>之间产生了异常，他的操作数栈会被清空，该异常会被压入当前的空栈中，然后执行<code>catch</code>中的指令。</p>
+<h3 id="3-1-5-Frames"><a href="#3-1-5-Frames" class="headerlink" title="3.1.5. Frames"></a>3.1.5. Frames</h3><p>java 6 及更高的版本中编译后的<code>Class</code>文件，除了操作码外，一系列<code>stack map frames</code>用于虚拟机提高类验证速度。一个<code>stack map frame</code>给出了方法执行过程中某一时刻的状态。它更加精准的表示某些特殊指令执行时候的局部变量表的槽位和操作数栈槽位的类型。<br>例如，如果我们考虑到上面提到的<code>getF</code>方法；我们可以定义三个<code>stack map frames</code>来定义栈帧执行的状态，处于<code>ALOAD</code>，<code>GETFIELD</code>和<code>IRETURN</code>之前。这三个<code>stack map frames</code>(栈帧映射栈)对应于图3.2中的三个例子，描述如下，每一个方括号中表示局部变量的类型，其他表示操作数栈：</p>
+<table>
+<thead>
+<tr>
+<th>before执行时的状态</th>
+<th>指令</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>[pkg/Bean] []</td>
+<td>ALOAD 0</td>
+</tr>
+<tr>
+<td>[pkg/Bean] [pkg/Bean]</td>
+<td>GETFIELD</td>
+</tr>
+<tr>
+<td>[pkg/Bean] [I]</td>
+<td>IRETURN</td>
+</tr>
+</tbody></table>
+<p>我们可以对<code>checkAndSetF</code>做相同的事情：</p>
+<table>
+<thead>
+<tr>
+<th>before执行时的状态</th>
+<th>指令</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>[pkg/Bean I] []</td>
+<td>ILOAD 1</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] [I]</td>
+<td>IFLT label</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] []</td>
+<td>ALOAD 0</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] [pkg/Bean]</td>
+<td>ILOAD 1</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] [pkg/Bean I]</td>
+<td>PUTFIELD</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] []</td>
+<td>GOTO end</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] []</td>
+<td>label :</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] []</td>
+<td>NEW</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] [Uninitialized(label)]</td>
+<td>DUP</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] [Uninitialized(label) Uninitialized(label)]</td>
+<td>INVOKESPECIAL</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] [java/lang/IllegalArgumentException]</td>
+<td>ATHROW</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] []</td>
+<td>end :</td>
+</tr>
+<tr>
+<td>[pkg/Bean I] []</td>
+<td>RETURN</td>
+</tr>
+</tbody></table>
+<p>和前面的方法类似，除了<code>Uninitialized(label)</code>类型。这是一个特殊的类型，仅仅用于栈帧映射栈中，用于表示对象的内存空间已经被创建，但是他的构造器还没有被调用。他的参数为创建的这个对象。这个类型只有在方法为构造器方法的时候才有可能被调用。当它被调用后，所有的出现这个类型的地方都会被替换为真正的类型，这里的类型是<code>IllegalArgumentException</code>。栈桢映射栈还会使用三个其他的特殊类型<code>UNINITIALIZED_THIS</code>适用于局部变量0的构造器的初始化类型。<code>TOP</code>对应于没有定义的值，<code>NULL</code>表示<code>null</code>。</p>
+<p>如上面说的，java 6以后的版本中，变异class文件后，包括字节码和栈帧映射栈集合。为了节约空间，一个编译后的方法不会一个栈帧包含一个指令：实际上，它仅仅包含对于的跳转目标或者异常<code>handler</code>指令，或者接下来的无条件跳转指令。这样，栈帧可以更容易和更快的互相引用。</p>
+<p>在<code>checkAndSetF</code>方法的例子中,表示这只有两个栈帧会被存储，一个用于<code>NEW</code>指令，因为它是<code>IFLT</code>质量的调用目标，而且因为它紧跟着无条件的<code>GOTO</code>指令。还有一个栈帧是给<code>RETURN</code>指令，因为他们是<code>GOTO</code>指令的跳转目标。而且他们后面跟着无条件跳转的<code>ATHROW</code>指令。</p>
+<p>为了存储更多的空间，每一个栈帧会被压缩成和前一个栈帧不相同的样子存储起来，而且初始栈帧也不会存储，因为他们很容易从方法参数类型中推倒出来。在<code>checkAndSetF</code>方法的例子中，两个栈帧一定要被存储起来，他们是相同的，而且和初始化栈桢相同，所以他们单独存储在一个<code>F_SAME</code>中。这些栈帧可以表示和他们相关联的字节码指令，<code>checkAndSetF</code>最后的字节码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">   ILOAD <span class="number">1</span></span><br><span class="line">   IFLT label</span><br><span class="line">   ALOAD <span class="number">0</span></span><br><span class="line">   ILOAD <span class="number">1</span></span><br><span class="line">   PUTFIELD pkg/Bean f I</span><br><span class="line">   GOTO end</span><br><span class="line">label:</span><br><span class="line">   F_SAME</span><br><span class="line">   NEW java/lang/IllegalArgumentException</span><br><span class="line">   DUP</span><br><span class="line">   INVOKESPECIAL java/lang/IllegalArgumentException &lt;init&gt; ()V</span><br><span class="line">   ATHROW</span><br><span class="line">end:</span><br><span class="line">   F_SAME</span><br><span class="line">   RETURN</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ASM-%E7%BF%BB%E8%AF%91/" rel="tag"># ASM 翻译</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/04/12/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jvm/%E8%87%AA%E5%B7%B1%E7%BC%96%E8%AF%91openjdk/" rel="prev" title="自己编译openjdk">
+      <i class="fa fa-chevron-left"></i> 自己编译openjdk
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2020/01/18/io%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8/" rel="next" title="io多路复用">
+      io多路复用 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#3-Methods-%E6%96%B9%E6%B3%95"><span class="nav-number">1.</span> <span class="nav-text">3 Methods 方法</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#3-1-Structure"><span class="nav-number">1.1.</span> <span class="nav-text">3.1 Structure</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-1-Execution-model-%E6%89%A7%E8%A1%8C%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.1.1.</span> <span class="nav-text">3.1.1 Execution model 执行模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-2-Bytecode-instructions-%E5%AD%97%E8%8A%82%E7%A0%81%E6%8C%87%E4%BB%A4"><span class="nav-number">1.1.2.</span> <span class="nav-text">3.1.2 Bytecode instructions 字节码指令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-3-Examples"><span class="nav-number">1.1.3.</span> <span class="nav-text">3.1.3. Examples</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-4-Exception-handlers"><span class="nav-number">1.1.4.</span> <span class="nav-text">3.1.4 Exception handlers</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-5-Frames"><span class="nav-number">1.1.5.</span> <span class="nav-text">3.1.5. Frames</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

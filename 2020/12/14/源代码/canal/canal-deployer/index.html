@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="Deployer按照阅读习惯，首先还是看main方法，找到启动项里面的startup.sh发现里面主要是启动了com.alibaba.otter.canal.deployer.CanalLauncher方法，说明该类就是启动入口了。PS：肯定会遇到配置项，先不将配置文件全部一个个列出来，随着代码需要的事情，慢慢看每个配置项的用法。 main 方法main方法中主要的功能就是初始化propertie">
+<meta property="og:type" content="article">
+<meta property="og:title" content="canal deployer">
+<meta property="og:url" content="http://yoursite.com/2020/12/14/%E6%BA%90%E4%BB%A3%E7%A0%81/canal/canal-deployer/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="Deployer按照阅读习惯，首先还是看main方法，找到启动项里面的startup.sh发现里面主要是启动了com.alibaba.otter.canal.deployer.CanalLauncher方法，说明该类就是启动入口了。PS：肯定会遇到配置项，先不将配置文件全部一个个列出来，随着代码需要的事情，慢慢看每个配置项的用法。 main 方法main方法中主要的功能就是初始化propertie">
+<meta property="og:locale">
+<meta property="article:published_time" content="2020-12-14T07:49:55.000Z">
+<meta property="article:modified_time" content="2020-12-15T02:34:10.503Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="canal">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://yoursite.com/2020/12/14/%E6%BA%90%E4%BB%A3%E7%A0%81/canal/canal-deployer/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
+
+  <title>canal deployer | Keanu Lee's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/12/14/%E6%BA%90%E4%BB%A3%E7%A0%81/canal/canal-deployer/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          canal deployer
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2020-12-14 15:49:55" itemprop="dateCreated datePublished" datetime="2020-12-14T15:49:55+08:00">2020-12-14</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-12-15 10:34:10" itemprop="dateModified" datetime="2020-12-15T10:34:10+08:00">2020-12-15</time>
+              </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="Deployer"><a href="#Deployer" class="headerlink" title="Deployer"></a>Deployer</h1><p>按照阅读习惯，首先还是看<code>main</code>方法，找到启动项里面的<code>startup.sh</code>发现里面主要是启动了<code>com.alibaba.otter.canal.deployer.CanalLauncher</code>方法，说明该类就是启动入口了。PS：肯定会遇到配置项，先不将配置文件全部一个个列出来，随着代码需要的事情，慢慢看每个配置项的用法。</p>
+<h2 id="main-方法"><a href="#main-方法" class="headerlink" title="main 方法"></a>main 方法</h2><p><code>main</code>方法中主要的功能就是初始化<code>properties</code>和<code>canalStarter</code>。没有必要在这里贴整个函数的代码。不过学到一个<code>Thread.setDefaultUncaughtExceptionHandler</code>的方法，主要用来于一般情况下用于记录当程序发生你未捕获的异常的时候，调用一个你默认的handler来进行某些操作，比如记录客户端版本，异常信息，等客户信息，方便收集异常原因。<code>canal</code>中只是打个日志。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">flow</span><br><span class="line">st&#x3D;&gt;start: 获取配置文件</span><br><span class="line">exce&#x3D;&gt;operation: 设置全局异常</span><br><span class="line">op&#x3D;&gt;operation: 初始化CanalStarter</span><br><span class="line">startServer&#x3D;&gt;operation: 调用canalStater.start()方法启动</span><br><span class="line">manage&#x3D;&gt;operation: 拉远程</span><br><span class="line">local&#x3D;&gt;operation: 使用配置文件</span><br><span class="line">cond&#x3D;&gt;condition: 是否拉远程manager配置</span><br><span class="line">e&#x3D;&gt;end</span><br><span class="line">st-&gt;exce-&gt;cond</span><br><span class="line">cond(yes)-&gt;manage</span><br><span class="line">cond(no)-&gt;local</span><br><span class="line">manage-&gt;op</span><br><span class="line">local-&gt;op</span><br><span class="line">op-&gt;startServer</span><br><span class="line">startServer-&gt;e</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，启动<code>server</code>和<code>server</code>中的<code>instance</code>都在<code>canalStater.start();</code>中。注意的是，这里应该是命名的问题，源码中少了一个<code>r</code>。</p>
+<p>这里涉及到的配置项包括：</p>
+<p><code>canal.conf</code>: 启动时候是否制定配置文件地址，-D</p>
+<p><code>canal.admin.manager</code>:manager地址</p>
+<p><code>canal.admin.port </code>: admin端口</p>
+<p><code>canal.admin.user</code> ：用户</p>
+<p><code>canal.admin.passwd</code>: 密码</p>
+<h2 id="canalStater-start-方法"><a href="#canalStater-start-方法" class="headerlink" title="canalStater.start()方法"></a>canalStater.start()方法</h2><p>该方法主要是初始化<code>CanalController</code>。整体方法如下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 读取配置文件中的canal.serverMode，根据mode创建对应的producer  </span></span><br><span class="line">String serverMode = CanalController.getProperty(properties, CanalConstants.CANAL_SERVER_MODE);</span><br><span class="line">        <span class="keyword">if</span> (serverMode.equalsIgnoreCase(<span class="string">&quot;kafka&quot;</span>)) &#123;</span><br><span class="line">            canalMQProducer = <span class="keyword">new</span> CanalKafkaProducer();</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (serverMode.equalsIgnoreCase(<span class="string">&quot;rocketmq&quot;</span>)) &#123;</span><br><span class="line">            canalMQProducer = <span class="keyword">new</span> CanalRocketMQProducer();</span><br><span class="line">        &#125;</span><br><span class="line">				<span class="comment">// 如果为MQ的话，TODO 为什么设置为netty为false？</span></span><br><span class="line">        <span class="keyword">if</span> (canalMQProducer != <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="comment">// disable netty</span></span><br><span class="line">            System.setProperty(CanalConstants.CANAL_WITHOUT_NETTY, <span class="string">&quot;true&quot;</span>);</span><br><span class="line">            <span class="comment">// 设置为raw避免ByteString-&gt;Entry的二次解析</span></span><br><span class="line">            System.setProperty(<span class="string">&quot;canal.instance.memory.rawEntry&quot;</span>, <span class="string">&quot;false&quot;</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        controller = <span class="keyword">new</span> CanalController(properties);</span><br><span class="line">        controller.start();</span><br><span class="line">       </span><br><span class="line">        shutdownThread = <span class="keyword">new</span> Thread() &#123;</span><br><span class="line"></span><br><span class="line">            <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                    logger.info(<span class="string">&quot;## stop the canal server&quot;</span>);</span><br><span class="line">                    controller.stop();</span><br><span class="line">                    CanalLauncher.runningLatch.countDown();</span><br><span class="line">                &#125; <span class="keyword">catch</span> (Throwable e) &#123;</span><br><span class="line">                    logger.warn(<span class="string">&quot;##something goes wrong when stopping canal Server:&quot;</span>, e);</span><br><span class="line">                &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">                    logger.info(<span class="string">&quot;## canal server is down.&quot;</span>);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">        &#125;;</span><br><span class="line">        Runtime.getRuntime().addShutdownHook(shutdownThread);</span><br><span class="line">        <span class="keyword">if</span> (canalMQProducer != <span class="keyword">null</span>) &#123;</span><br><span class="line">            canalMQStarter = <span class="keyword">new</span> CanalMQStarter(canalMQProducer);</span><br><span class="line">            MQProperties mqProperties = buildMQProperties(properties);</span><br><span class="line">            String destinations = CanalController.getProperty(properties, CanalConstants.CANAL_DESTINATIONS);</span><br><span class="line">            canalMQStarter.start(mqProperties, destinations);</span><br><span class="line">            controller.setCanalMQStarter(canalMQStarter);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// start canalAdmin</span></span><br><span class="line">        String port = properties.getProperty(CanalConstants.CANAL_ADMIN_PORT);</span><br><span class="line">        <span class="keyword">if</span> (canalAdmin == <span class="keyword">null</span> &amp;&amp; StringUtils.isNotEmpty(port)) &#123;</span><br><span class="line">            String user = properties.getProperty(CanalConstants.CANAL_ADMIN_USER);</span><br><span class="line">            String passwd = properties.getProperty(CanalConstants.CANAL_ADMIN_PASSWD);</span><br><span class="line">            CanalAdminController canalAdmin = <span class="keyword">new</span> CanalAdminController(<span class="keyword">this</span>);</span><br><span class="line">            canalAdmin.setUser(user);</span><br><span class="line">            canalAdmin.setPasswd(passwd);</span><br><span class="line"></span><br><span class="line">            String ip = properties.getProperty(CanalConstants.CANAL_IP);</span><br><span class="line">            CanalAdminWithNetty canalAdminWithNetty = CanalAdminWithNetty.instance();</span><br><span class="line">            canalAdminWithNetty.setCanalAdmin(canalAdmin);</span><br><span class="line">            canalAdminWithNetty.setPort(Integer.valueOf(port));</span><br><span class="line">            canalAdminWithNetty.setIp(ip);</span><br><span class="line">            canalAdminWithNetty.start();</span><br><span class="line">            <span class="keyword">this</span>.canalAdmin = canalAdminWithNetty;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        running = <span class="keyword">true</span>;</span><br></pre></td></tr></table></figure>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/canal/" rel="tag"># canal</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/12/14/%E6%BA%90%E4%BB%A3%E7%A0%81/canal/canal%E5%AD%A6%E4%B9%A0/" rel="prev" title="canal学习">
+      <i class="fa fa-chevron-left"></i> canal学习
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Deployer"><span class="nav-number">1.</span> <span class="nav-text">Deployer</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#main-%E6%96%B9%E6%B3%95"><span class="nav-number">1.1.</span> <span class="nav-text">main 方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#canalStater-start-%E6%96%B9%E6%B3%95"><span class="nav-number">1.2.</span> <span class="nav-text">canalStater.start()方法</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

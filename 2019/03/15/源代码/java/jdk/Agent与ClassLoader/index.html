@@ -1,37 +1,448 @@
-{% extends '_layout.swig' %}
-{% import '_macro/post.swig' as post_template %}
-{% import '_macro/sidebar.swig' as sidebar_template %}
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
 
 
-{% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
 
-{% block page_class %}page-post-detail{% endblock %}
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="卷首语因为最近学习使用到了javaagent来做动态字节的增强，在之前使用TTL的时候对agent稍微了解。但是针对byte-buddy和agent具体的运行情况，甚至ASM都不是很理解。借着这个机会，来了解了一下agent的实现，也加深了对classLoader的实现的理解。特此记录，如果有什么错误，请指出和联系我。深表感谢。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Agent与ClassLoader">
+<meta property="og:url" content="http://yoursite.com/2019/03/15/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/Agent%E4%B8%8EClassLoader/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="卷首语因为最近学习使用到了javaagent来做动态字节的增强，在之前使用TTL的时候对agent稍微了解。但是针对byte-buddy和agent具体的运行情况，甚至ASM都不是很理解。借着这个机会，来了解了一下agent的实现，也加深了对classLoader的实现的理解。特此记录，如果有什么错误，请指出和联系我。深表感谢。">
+<meta property="og:locale">
+<meta property="article:published_time" content="2019-03-15T03:55:00.000Z">
+<meta property="article:modified_time" content="2020-11-24T10:30:59.206Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="jdk">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://yoursite.com/2019/03/15/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/Agent%E4%B8%8EClassLoader/">
 
 
-{% block content %}
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
 
-  <div id="posts" class="posts-expand">
-    {{ post_template.render(page) }}
+  <title>Agent与ClassLoader | Keanu Lee's Blog</title>
+  
 
-    <div class="post-spread">
-      {% if theme.jiathis %}
-        {% include '_partials/share/jiathis.swig' %}
-      {% elseif theme.baidushare %}
-        {% include '_partials/share/baidushare.swig' %}
-      {% elseif theme.add_this_id %}
-        {% include '_partials/share/add-this.swig' %}
-      {% elseif theme.duoshuo_shortname and theme.duoshuo_share %}
-        {% include '_partials/share/duoshuo_share.swig' %}
-      {% endif %}
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
     </div>
   </div>
 
-{% endblock %}
+  <div class="site-meta">
 
-{% block sidebar %}
-  {{ sidebar_template.render(true) }}
-{% endblock %}
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
 
-{% block script_extra %}
-  {% include '_scripts/pages/post-details.swig' %}
-{% endblock %}
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/15/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/Agent%E4%B8%8EClassLoader/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Agent与ClassLoader
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-03-15 11:55:00" itemprop="dateCreated datePublished" datetime="2019-03-15T11:55:00+08:00">2019-03-15</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-11-24 18:30:59" itemprop="dateModified" datetime="2020-11-24T18:30:59+08:00">2020-11-24</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81/" itemprop="url" rel="index"><span itemprop="name">源码</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="卷首语"><a href="#卷首语" class="headerlink" title="卷首语"></a>卷首语</h2><p>因为最近学习使用到了javaagent来做动态字节的增强，在之前使用TTL的时候对agent稍微了解。但是针对byte-buddy和agent具体的运行情况，甚至ASM都不是很理解。借着这个机会，来了解了一下agent的实现，也加深了对classLoader的实现的理解。特此记录，如果有什么错误，请指出和联系我。深表感谢。<br> <a id="more"></a></p>
+<h2 id="第零回-Java"><a href="#第零回-Java" class="headerlink" title="第零回 Java"></a>第零回 Java</h2><p>其实java本身就有字节码增强的技术，最直观的就是Lambda表达式，这个可以在官网和ASM官网中看到。</p>
+<h2 id="第一回-Class的一生"><a href="#第一回-Class的一生" class="headerlink" title="第一回  Class的一生"></a>第一回  Class的一生</h2><p>我们都知道，Java程序需要运行，首先第一步是javac XXX.java 转变成XXX.class 通过javap -c 可以看到对应的字节码。那么Java是怎么从这个字节码开始运行的呢？字节码最后变成了什么样子呢？绕来绕去，离不开一个东西–JVM。先不管JVM里的细节，来看下一个.class文件经历什么。运行一个java方法首先要做的事情就是java XXX。java这个命令和tomcat的startup.sh是差不多的，只不过前者是启动了一个JVM，后者是启动了一个java方法（当然，tomcat也是要启动虚拟机的）。后面的XXX就是传入的参数。我们来稍微的扫一下会做啥：（会涉及到JVM源码，个人不喜欢全贴源码，所以节选部分）[version:jdk8u]main.c 的main(jdk/src/share/bin/main.c)jvm就是一个c方法，所以第一步肯定是进入main方法,main方法主要调用JLI_Launch方法，位于java.c。java.c (同main.c) </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">int</span><br><span class="line">JLI_Launch(int argc, char ** argv,              &#x2F;* main argc, argc *&#x2F;</span><br><span class="line">        int jargc, const char** jargv,          &#x2F;* java args *&#x2F;</span><br><span class="line">        int appclassc, const char** appclassv,  &#x2F;* app classpath *&#x2F;</span><br><span class="line">        const char* fullversion,                &#x2F;* full version defined *&#x2F;</span><br><span class="line">        const char* dotversion,                 &#x2F;* dot version defined *&#x2F;</span><br><span class="line">        const char* pname,                      &#x2F;* program name *&#x2F;</span><br><span class="line">        const char* lname,                      &#x2F;* launcher name *&#x2F;</span><br><span class="line">        jboolean javaargs,                      &#x2F;* JAVA_ARGS *&#x2F;</span><br><span class="line">        jboolean cpwildcard,                    &#x2F;* classpath wildcard*&#x2F;</span><br><span class="line">        jboolean javaw,                         &#x2F;* windows-only javaw *&#x2F;</span><br><span class="line">        jint ergo                               &#x2F;* ergonomics class policy *&#x2F;</span><br><span class="line">)</span><br><span class="line">&#123;</span><br><span class="line">    &#x2F;&#x2F;这里会做很多的初始化操作，比如加载传入的参数啊，是否需要打印日志啊，设置classPath，等等</span><br><span class="line">    &#x2F;&#x2F;最后调用JVMInit，从命名上看就很直观</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>JVMInit–&gt;ContinueInNewThread–&gt;ContinueInNewThread0–&gt;javaMain 其中javaMain是用指针作为参数传入进去的.</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br></pre></td><td class="code"><pre><span class="line">int JNICALL</span><br><span class="line">JavaMain(void * _args)</span><br><span class="line">&#123;</span><br><span class="line">    JavaMainArgs *args &#x3D; (JavaMainArgs *)_args;</span><br><span class="line">    int argc &#x3D; args-&gt;argc;</span><br><span class="line">    char **argv &#x3D; args-&gt;argv;</span><br><span class="line">    int mode &#x3D; args-&gt;mode;</span><br><span class="line">    char *what &#x3D; args-&gt;what;</span><br><span class="line">    InvocationFunctions ifn &#x3D; args-&gt;ifn;</span><br><span class="line"></span><br><span class="line">    JavaVM *vm &#x3D; 0;</span><br><span class="line">    JNIEnv *env &#x3D; 0;</span><br><span class="line">    jclass mainClass &#x3D; NULL;</span><br><span class="line">    jclass appClass &#x3D; NULL; &#x2F;&#x2F; actual application class being launched</span><br><span class="line">    jmethodID mainID;</span><br><span class="line">    jobjectArray mainArgs;</span><br><span class="line">    int ret &#x3D; 0;</span><br><span class="line">    jlong start, end;</span><br><span class="line"></span><br><span class="line">    RegisterThread();</span><br><span class="line">    &#x2F;&#x2F;这个中间有一大波的判断，先不管。</span><br><span class="line">    ret &#x3D; 1;</span><br><span class="line"></span><br><span class="line">    &#x2F;*</span><br><span class="line">     * Get the application&#39;s main class.</span><br><span class="line">     *</span><br><span class="line">     * See bugid 5030265.  The Main-Class name has already been parsed</span><br><span class="line">     * from the manifest, but not parsed properly for UTF-8 support.</span><br><span class="line">     * Hence the code here ignores the value previously extracted and</span><br><span class="line">     * uses the pre-existing code to reextract the value.  This is</span><br><span class="line">     * possibly an end of release cycle expedient.  However, it has</span><br><span class="line">     * also been discovered that passing some character sets through</span><br><span class="line">     * the environment has &quot;strange&quot; behavior on some variants of</span><br><span class="line">     * Windows.  Hence, maybe the manifest parsing code local to the</span><br><span class="line">     * launcher should never be enhanced.</span><br><span class="line">     *</span><br><span class="line">     * Hence, future work should either:</span><br><span class="line">     *     1)   Correct the local parsing code and verify that the</span><br><span class="line">     *          Main-Class attribute gets properly passed through</span><br><span class="line">     *          all environments,</span><br><span class="line">     *     2)   Remove the vestages of maintaining main_class through</span><br><span class="line">     *          the environment (and remove these comments).</span><br><span class="line">     *</span><br><span class="line">     * This method also correctly handles launching existing JavaFX</span><br><span class="line">     * applications that may or may not have a Main-Class manifest entry.</span><br><span class="line">     *&#x2F;</span><br><span class="line">    mainClass &#x3D; LoadMainClass(env, mode, what);</span><br><span class="line">    CHECK_EXCEPTION_NULL_LEAVE(mainClass);</span><br><span class="line">    &#x2F;*</span><br><span class="line">     * In some cases when launching an application that needs a helper, e.g., a</span><br><span class="line">     * JavaFX application with no main method, the mainClass will not be the</span><br><span class="line">     * applications own main class but rather a helper class. To keep things</span><br><span class="line">     * consistent in the UI we need to track and report the application main class.</span><br><span class="line">     *&#x2F;</span><br><span class="line">    appClass &#x3D; GetApplicationClass(env);</span><br><span class="line">    NULL_CHECK_RETURN_VALUE(appClass, -1);</span><br><span class="line">    &#x2F;*</span><br><span class="line">     * PostJVMInit uses the class name as the application name for GUI purposes,</span><br><span class="line">     * for example, on OSX this sets the application name in the menu bar for</span><br><span class="line">     * both SWT and JavaFX. So we&#39;ll pass the actual application class here</span><br><span class="line">     * instead of mainClass as that may be a launcher or helper class instead</span><br><span class="line">     * of the application class.</span><br><span class="line">     *&#x2F;</span><br><span class="line">    PostJVMInit(env, appClass, vm);</span><br><span class="line">    CHECK_EXCEPTION_LEAVE(1);</span><br><span class="line">    &#x2F;*</span><br><span class="line">     * The LoadMainClass not only loads the main class, it will also ensure</span><br><span class="line">     * that the main method&#39;s signature is correct, therefore further checking</span><br><span class="line">     * is not required. The main method is invoked here so that extraneous java</span><br><span class="line">     * stacks are not in the application stack trace.</span><br><span class="line">     *&#x2F;</span><br><span class="line">    mainID &#x3D; (*env)-&gt;GetStaticMethodID(env, mainClass, &quot;main&quot;,</span><br><span class="line">                                       &quot;([Ljava&#x2F;lang&#x2F;String;)V&quot;);</span><br><span class="line">    CHECK_EXCEPTION_NULL_LEAVE(mainID);</span><br><span class="line"></span><br><span class="line">    &#x2F;* Build platform specific argument array *&#x2F;</span><br><span class="line">    mainArgs &#x3D; CreateApplicationArgs(env, argv, argc);</span><br><span class="line">    CHECK_EXCEPTION_NULL_LEAVE(mainArgs);</span><br><span class="line"></span><br><span class="line">    &#x2F;* Invoke main method. *&#x2F;</span><br><span class="line">    (*env)-&gt;CallStaticVoidMethod(env, mainClass, mainID, mainArgs);</span><br><span class="line"></span><br><span class="line">    &#x2F;*</span><br><span class="line">     * The launcher&#39;s exit code (in the absence of calls to</span><br><span class="line">     * System.exit) will be non-zero if main threw an exception.</span><br><span class="line">     *&#x2F;</span><br><span class="line">    ret &#x3D; (*env)-&gt;ExceptionOccurred(env) &#x3D;&#x3D; NULL ? 0 : 1;</span><br><span class="line">    LEAVE();</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<p>最后进入javaMain方法，这个main方法我个人觉得就是要准备开始执行我们的class文件中的main方法了，可以理解成main线程也许，首先应该是加载我们的类，用啥加载呢，classLoader，所以应该先加载clssLoader，使用的是GetLauncherHelperClass，获取到sun.launcher.LauncherHelper。<br>使用的是bootStrapClassLoader（Java_java_lang_ClassLoader_findBootstrapClass  jdk/src/share/native/java/lang/classloader.c）. 跟着bootstrapClassLoader，可以最后跑到</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">jclass <span class="title">find_class_from_class_loader</span><span class="params">(JNIEnv* env, Symbol* name, jboolean init,</span></span></span><br><span class="line"><span class="function"><span class="params">                                    Handle loader, Handle protection_domain,</span></span></span><br><span class="line"><span class="function"><span class="params">                                    jboolean throwError, TRAPS)</span> </span>&#123;</span><br><span class="line">  <span class="comment">// Security Note:</span></span><br><span class="line">  <span class="comment">//   The Java level wrapper will perform the necessary security check allowing</span></span><br><span class="line">  <span class="comment">//   us to pass the NULL as the initiating class loader.  The VM is responsible for</span></span><br><span class="line">  <span class="comment">//   the checkPackageAccess relative to the initiating class loader via the</span></span><br><span class="line">  <span class="comment">//   protection_domain. The protection_domain is passed as NULL by the java code</span></span><br><span class="line">  <span class="comment">//   if there is no security manager in 3-arg Class.forName().</span></span><br><span class="line">  Klass* klass = SystemDictionary::resolve_or_fail(name, loader, protection_domain, throwError != <span class="number">0</span>, CHECK_NULL);</span><br><span class="line"></span><br><span class="line">  <span class="function">KlassHandle <span class="title">klass_handle</span><span class="params">(THREAD, klass)</span></span>;</span><br><span class="line">  <span class="comment">// Check if we should initialize the class</span></span><br><span class="line">  <span class="keyword">if</span> (init &amp;&amp; klass_handle-&gt;oop_is_instance()) &#123;</span><br><span class="line">    klass_handle-&gt;initialize(CHECK_NULL);</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> (jclass) JNIHandles::make_local(env, klass_handle-&gt;java_mirror());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里的jclass可以理解为Class对象。也就是生成一个LauncherHelper的Class对象。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> jclass</span><br><span class="line">LoadMainClass(JNIEnv *env, <span class="keyword">int</span> mode, <span class="keyword">char</span> *name)</span><br><span class="line">&#123;</span><br><span class="line">    jmethodID mid;</span><br><span class="line">    jstring str;</span><br><span class="line">    jobject result;</span><br><span class="line">    jlong start, end;</span><br><span class="line">    <span class="comment">//该对象为LauncherHelper</span></span><br><span class="line">    jclass cls = GetLauncherHelperClass(env);</span><br><span class="line">    NULL_CHECK0(cls);</span><br><span class="line">    <span class="keyword">if</span> (JLI_IsTraceLauncher()) &#123;</span><br><span class="line">        start = CounterGet();</span><br><span class="line">    &#125;</span><br><span class="line">    NULL_CHECK0(mid = (*env)-&gt;GetStaticMethodID(env, cls,</span><br><span class="line">                <span class="string">&quot;checkAndLoadMain&quot;</span>,</span><br><span class="line">                <span class="string">&quot;(ZILjava/lang/String;)Ljava/lang/Class;&quot;</span>));</span><br><span class="line"></span><br><span class="line">    str = NewPlatformString(env, name);</span><br><span class="line">    CHECK_JNI_RETURN_0(</span><br><span class="line">        result = (*env)-&gt;CallStaticObjectMethod(</span><br><span class="line">            env, cls, mid, USE_STDERR, mode, str));</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (JLI_IsTraceLauncher()) &#123;</span><br><span class="line">        end   = CounterGet();</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;%ld micro seconds to load main class\n&quot;</span>,</span><br><span class="line">               (<span class="keyword">long</span>)(jint)Counter2Micros(end-start));</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;----%s----\n&quot;</span>, JLDEBUG_ENV_ENTRY);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> (jclass)result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>最后掉用了一下CallStaticObjectMethod，这个方法应该是java在方法区生成方法的字节码，当前线程进入方法区，按照mid找到对应的字节码。checkAndLoadMain,调用了静态方法，那么就要触发初始化操作（个人理解），所以LauncherHelper中的scloader也会被初始化，从initSystemClassLoader–&gt;Launcher();这里就是双亲委派模型的开始，将boot作为parent放入ext，再将ext作为parent放入app</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">Launcher</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    Launcher.ExtClassLoader var1;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">//ext</span></span><br><span class="line">        var1 = Launcher.ExtClassLoader.getExtClassLoader();</span><br><span class="line">    &#125; <span class="keyword">catch</span> (IOException var10) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> InternalError(<span class="string">&quot;Could not create extension class loader&quot;</span>, var10);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">//ext作为父类</span></span><br><span class="line">        <span class="keyword">this</span>.loader = Launcher.AppClassLoader.getAppClassLoader(var1);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (IOException var9) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> InternalError(<span class="string">&quot;Could not create application class loader&quot;</span>, var9);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//app设置为线程上下文中的classloader</span></span><br><span class="line">    Thread.currentThread().setContextClassLoader(<span class="keyword">this</span>.loader);</span><br><span class="line">    <span class="comment">//权限管理</span></span><br><span class="line">    String var2 = System.getProperty(<span class="string">&quot;java.security.manager&quot;</span>);</span><br><span class="line">    <span class="keyword">if</span> (var2 != <span class="keyword">null</span>) &#123;</span><br><span class="line">        SecurityManager var3 = <span class="keyword">null</span>;</span><br><span class="line">        <span class="keyword">if</span> (!<span class="string">&quot;&quot;</span>.equals(var2) &amp;&amp; !<span class="string">&quot;default&quot;</span>.equals(var2)) &#123;</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                var3 = (SecurityManager)<span class="keyword">this</span>.loader.loadClass(var2).newInstance();</span><br><span class="line">            &#125; <span class="keyword">catch</span> (IllegalAccessException var5) &#123;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (InstantiationException var6) &#123;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (ClassNotFoundException var7) &#123;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (ClassCastException var8) &#123;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            var3 = <span class="keyword">new</span> SecurityManager();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (var3 == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> InternalError(<span class="string">&quot;Could not create SecurityManager: &quot;</span> + var2);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        System.setSecurityManager(var3);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>然后进行含有main方法的类的加载。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> Class&lt;?&gt; loadClass(String name, <span class="keyword">boolean</span> resolve)</span><br><span class="line">    <span class="keyword">throws</span> ClassNotFoundException</span><br><span class="line">&#123;</span><br><span class="line">      (getClassLoadingLock(name)) &#123;</span><br><span class="line">        <span class="comment">// First, check if the class has already been loaded</span></span><br><span class="line">        Class&lt;?&gt; c = findLoadedClass(name);</span><br><span class="line">        <span class="keyword">if</span> (c == <span class="keyword">null</span>) &#123;</span><br><span class="line">            <span class="keyword">long</span> t0 = System.nanoTime();</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="keyword">if</span> (parent != <span class="keyword">null</span>) &#123;</span><br><span class="line">                    c = parent.loadClass(name, <span class="keyword">false</span>);</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    c = findBootstrapClassOrNull(name);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">catch</span> (ClassNotFoundException e) &#123;</span><br><span class="line">                <span class="comment">// ClassNotFoundException thrown if class not found</span></span><br><span class="line">                <span class="comment">// from the non-null parent class loader</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (c == <span class="keyword">null</span>) &#123;</span><br><span class="line">                <span class="comment">// If still not found, then invoke findClass in order</span></span><br><span class="line">                <span class="comment">// to find the class.</span></span><br><span class="line">                <span class="keyword">long</span> t1 = System.nanoTime();</span><br><span class="line">                c = findClass(name);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// this is the defining class loader; record the stats</span></span><br><span class="line">                sun.misc.PerfCounter.getParentDelegationTime().addTime(t1 - t0);</span><br><span class="line">                sun.misc.PerfCounter.getFindClassTime().addElapsedTimeFrom(t1);</span><br><span class="line">                sun.misc.PerfCounter.getFindClasses().increment();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (resolve) &#123;</span><br><span class="line">            resolveClass(c);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> c;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上诉就是双亲委派加载的具体实现了。最后会调用defineClass，在进行define之前，会preDefineClass一下，这就解释了为啥自定义一个java.lang.String的对象是没办法被加载的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> ProtectionDomain <span class="title">preDefineClass</span><span class="params">(String name,</span></span></span><br><span class="line"><span class="function"><span class="params">                                        ProtectionDomain pd)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!checkName(name))</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> NoClassDefFoundError(<span class="string">&quot;IllegalName: &quot;</span> + name);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> ((name != <span class="keyword">null</span>) &amp;&amp; name.startsWith(<span class="string">&quot;java.&quot;</span>)) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> SecurityException</span><br><span class="line">            (<span class="string">&quot;Prohibited package name: &quot;</span> +</span><br><span class="line">             name.substring(<span class="number">0</span>, name.lastIndexOf(<span class="string">&#x27;.&#x27;</span>)));</span><br><span class="line">    &#125;</span><br><span class="line"><span class="comment">//有删减</span></span><br><span class="line">    <span class="keyword">return</span> pd;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>最后到了native方法defineClass1。jvm里面的调用方法为（/jdk/src/share/native/java/lang/ClassLoader.c）Java_java_lang_ClassLoader_defineClass1–&gt;JVM_DefineClassWithSource–&gt;jvm_define_class_common。方法在进入Java_java_lang_ClassLoader_defineClass1的时候，class文件已经被加载进来了，还要进行class文件的解析和验证。最后的解析是在（hotspot/src/share/vm/classfile/classFileParser.cpp）中。代码太长就不贴了。<br>也是在处理阶段之前，调用了should_post_class_file_load_hook()的钩子函数，在jvm启动的时候会首先判断是否有javaagent参数，如果有会将钩子函数注册。此情况为jvmti中提到的Agent_OnLoad 的OnLoad阶段。（tag：如果是Live阶段重新定义是否会触onLoad？）。<br>到解析文件完成，Class文件就被装进jvm里了。说回来，一个Class文件的他的样子到底是什么样的呢？这里使用ASM来展示下。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Demo</span> </span>&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> String name=<span class="string">&quot;demo&quot;</span>;</span><br><span class="line">    <span class="keyword">private</span> String instance;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">int</span>  age;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">staticAction</span><span class="params">()</span></span>&#123;</span><br><span class="line">        System.out.println(<span class="string">&quot;staticAction is running&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;staticAction return&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span>  String <span class="title">action</span><span class="params">()</span></span>&#123;</span><br><span class="line">        System.out.println(<span class="string">&quot;this is action&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="string">&quot;action&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F; class version 52.0 (52)</span><br><span class="line">&#x2F;&#x2F; access flags 0x21</span><br><span class="line">public class com&#x2F;tuitaking&#x2F;demo&#x2F;Demo &#123;</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; compiled from: Demo.java</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; access flags 0x9</span><br><span class="line">  public static Ljava&#x2F;lang&#x2F;String; name</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; access flags 0x2</span><br><span class="line">  private Ljava&#x2F;lang&#x2F;String; instance</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; access flags 0x2</span><br><span class="line">  private I age</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; access flags 0x1</span><br><span class="line">  public &lt;init&gt;()V</span><br><span class="line">   L0</span><br><span class="line">    LINENUMBER 6 L0</span><br><span class="line">    ALOAD 0</span><br><span class="line">    INVOKESPECIAL java&#x2F;lang&#x2F;Object.&lt;init&gt; ()V</span><br><span class="line">    RETURN</span><br><span class="line">   L1</span><br><span class="line">    LOCALVARIABLE this Lcom&#x2F;tuitaking&#x2F;demo&#x2F;Demo; L0 L1 0</span><br><span class="line">    MAXSTACK &#x3D; 1</span><br><span class="line">    MAXLOCALS &#x3D; 1</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; access flags 0x9</span><br><span class="line">  public static staticAction()Ljava&#x2F;lang&#x2F;String;</span><br><span class="line">   L0</span><br><span class="line">    LINENUMBER 11 L0</span><br><span class="line">    GETSTATIC java&#x2F;lang&#x2F;System.out : Ljava&#x2F;io&#x2F;PrintStream;</span><br><span class="line">    LDC &quot;staticAction is running&quot;</span><br><span class="line">    INVOKEVIRTUAL java&#x2F;io&#x2F;PrintStream.println (Ljava&#x2F;lang&#x2F;String;)V</span><br><span class="line">   L1</span><br><span class="line">    LINENUMBER 12 L1</span><br><span class="line">    LDC &quot;staticAction return&quot;</span><br><span class="line">    ARETURN</span><br><span class="line">    MAXSTACK &#x3D; 2</span><br><span class="line">    MAXLOCALS &#x3D; 0</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; access flags 0x1</span><br><span class="line">  public action()Ljava&#x2F;lang&#x2F;String;</span><br><span class="line">   L0</span><br><span class="line">    LINENUMBER 15 L0</span><br><span class="line">    GETSTATIC java&#x2F;lang&#x2F;System.out : Ljava&#x2F;io&#x2F;PrintStream;</span><br><span class="line">    LDC &quot;this is action&quot;</span><br><span class="line">    INVOKEVIRTUAL java&#x2F;io&#x2F;PrintStream.println (Ljava&#x2F;lang&#x2F;String;)V</span><br><span class="line">   L1</span><br><span class="line">    LINENUMBER 16 L1</span><br><span class="line">    LDC &quot;action&quot;</span><br><span class="line">    ARETURN</span><br><span class="line">   L2</span><br><span class="line">    LOCALVARIABLE this Lcom&#x2F;tuitaking&#x2F;demo&#x2F;Demo; L0 L2 0</span><br><span class="line">    MAXSTACK &#x3D; 2</span><br><span class="line">    MAXLOCALS &#x3D; 1</span><br><span class="line"></span><br><span class="line">  &#x2F;&#x2F; access flags 0x8</span><br><span class="line">  static &lt;clinit&gt;()V</span><br><span class="line">   L0</span><br><span class="line">    LINENUMBER 7 L0</span><br><span class="line">    LDC &quot;demo&quot;</span><br><span class="line">    PUTSTATIC com&#x2F;tuitaking&#x2F;demo&#x2F;Demo.name : Ljava&#x2F;lang&#x2F;String;</span><br><span class="line">    RETURN</span><br><span class="line">    MAXSTACK &#x3D; 1</span><br><span class="line">    MAXLOCALS &#x3D; 0</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以很明显的看到，实例方法是会比源码多一个本地变量的，LOCALVARIABLE 第一个都是this，静态函数却没有。而且实例的默认构造器中是没有和static挂钩的，静态域name是被单独初始化的，而此时的实例域的值都是默认值。所以静态方法中不能调用非静态方法，因为会少一个参数，this。<br>上面的字节码中每一个方法会生成一个frame，jvm的线程会有自己的栈，这个栈是线程独占的，字节码中可以看到已经有本地变量表，参数传入进来，然后根据下面的操作码进行FILO的操作。</p>
+<h2 id="第二回-KClass-–-OOP-模型"><a href="#第二回-KClass-–-OOP-模型" class="headerlink" title="第二回 KClass – OOP 模型"></a>第二回 KClass – OOP 模型</h2><p>为什么最开始的时候java是被称呼为解释型语言的呢，就是因为他其实是把你写的Java 代码转换成某些特殊的c++代码（个人愚见）。<br>其中OOP（ordinary object pointer），普通对象指针？因为java中没有指针的概念，但是我们的对象最终是生成在内存中的，这个可以理解为一个对象生成后的内存位置，也就是这个对象（说点废话）。这个普通对象指针指向的就是描述对象实例信息。可以理解为每生成一个对象就会创建一个oop <a target="_blank" rel="noopener" href="http://openjdk.java.net/groups/hotspot/docs/StorageManagement.html" title="The Klass Hierarchy">具体可见</a>，原文举了例子，一个java的实例对象（instanceOopDesc），里面的域都是由程序员定义的，为了让class文件和这个对象之间保持对应关系，会在里面加一个header，来标注class对象（instanceKlass）。顶级class为oopDesc（）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">oopDesc</span> &#123;</span></span><br><span class="line">  <span class="keyword">friend</span> <span class="class"><span class="keyword">class</span> <span class="title">VMStructs</span>;</span></span><br><span class="line"> <span class="keyword">private</span>:</span><br><span class="line">  <span class="keyword">volatile</span> markOop  _mark;</span><br><span class="line">  <span class="class"><span class="keyword">union</span> _<span class="title">metadata</span> &#123;</span></span><br><span class="line">    Klass*      _klass;</span><br><span class="line">    narrowKlass _compressed_klass;</span><br><span class="line">  &#125; _metadata;</span><br><span class="line">  <span class="comment">//删减很多&#125;</span></span><br></pre></td></tr></table></figure>
+<p>可以看到oopDesc作为基类，包含了对象头，对象头最常见就是用来锁synchronized的实现。这也就可以说明为什么.class的锁是全局锁，而对象的锁只是使用当前对象的锁了。（BYW：前文忘记说了，同一个class之所以只能被classloader加载一次，是因为classloader会被注册到class上，后续将agent可能会深入，这里只是想说明下为啥.class是唯一的，当然，引出一个问题，两个不同的classloader来加载相同的class的话，这个时候.class 的锁是加在哪个上面的？）<br>上文提到，static方法适合Class绑定的，在这里也可以看出为什么我们在使用静态方法的适合不需要实例，因为两者在jvm里的抽象就是完全不同的类。（个人理解）<br>其实整个KClass–OOP模型还有很多的细节，包括方法的抽象等等，都可以深入去了解下。这里按下不表。</p>
+<h2 id="第三回-java的agent"><a href="#第三回-java的agent" class="headerlink" title="第三回 java的agent"></a>第三回 java的agent</h2><p>最开始的agent是用c或者c++写的，其实看到上面，就应该会想，既然最后都是映射成c++了，那么我用c写个方法，是不是也可以用java来调用，理论上是可以的如同native或者android编译c为.o后也能够调用（大学第一个通宵就是搞这个啊……^_^）。那么，我们又是如何通过写-javaagent就能够让他生效的呢？<br>在jvm启动的时候，会将解析参数，如果有agent相关的参数（-javaagengt etc），会将做一个钩子函数或者说注册事件监听，等到classLoad的时候进行处理。<br>如果在vm启动过程中加载agent，那么会在vm初始化过程中先执行libinstrument.dylib里InvocationAdapter.c的Agent_OnLoad方法，这里主要是实例化agent，解析agent的MF文件，将相关属性取出来，并注册jvmti的一些回调函数，在vm初始化完成之后，会通过回调函数去实例化Instrumentation实现对象，设置ClassFileLoadHook函数，并调用Pre-Main指定类的premain方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">(jdk&#x2F;src&#x2F;share&#x2F;instrument&#x2F;InvocationAdapter.c)</span><br><span class="line">Agent_OnLoad(JavaVM *vm, char *tail, void * reserved) &#123;</span><br><span class="line">    JPLISInitializationError initerror  &#x3D; JPLIS_INIT_ERROR_NONE;</span><br><span class="line">    jint                     result     &#x3D; JNI_OK;</span><br><span class="line">    JPLISAgent *             agent      &#x3D; NULL;</span><br><span class="line"></span><br><span class="line">    initerror &#x3D; createNewJPLISAgent(vm, &amp;agent);</span><br><span class="line">    &#x2F;&#x2F;大量删减</span><br><span class="line">    &#x2F;&#x2F;MANIFEST.MF</span><br><span class="line">    premainClass &#x3D; getAttribute(attributes, &quot;Premain-Class&quot;);</span><br><span class="line">     appendClassPath(agent, jarfile);</span><br><span class="line">     bootClassPath &#x3D; getAttribute(attributes, &quot;Boot-Class-Path&quot;);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<p>下面是对于的函数。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">   <span class="keyword">void</span> JNICALL</span><br><span class="line">eventHandlerClassFileLoadHook(  jvmtiEnv *              jvmtienv,</span><br><span class="line">                                JNIEnv *                jnienv,</span><br><span class="line">                                jclass                  class_being_redefined,</span><br><span class="line">                                jobject                 loader,</span><br><span class="line">                                <span class="keyword">const</span> <span class="keyword">char</span>*             name,</span><br><span class="line">                                jobject                 protectionDomain,</span><br><span class="line">                                jint                    class_data_len,</span><br><span class="line">                                <span class="keyword">const</span> <span class="keyword">unsigned</span> <span class="keyword">char</span>*    class_data,</span><br><span class="line">                                jint*                   new_class_data_len,</span><br><span class="line">                                <span class="keyword">unsigned</span> <span class="keyword">char</span>**         new_class_data) &#123;</span><br><span class="line">    JPLISEnvironment * environment  = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    environment = getJPLISEnvironment(jvmtienv);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* if something is internally inconsistent (no agent), just silently return without touching the buffer */</span></span><br><span class="line">    <span class="keyword">if</span> ( environment != <span class="literal">NULL</span> ) &#123;</span><br><span class="line">        jthrowable outstandingException = preserveThrowable(jnienv);</span><br><span class="line">        transformClassFile( environment-&gt;mAgent,</span><br><span class="line">                            jnienv,</span><br><span class="line">                            loader,</span><br><span class="line">                            name,</span><br><span class="line">                            class_being_redefined,</span><br><span class="line">                            protectionDomain,</span><br><span class="line">                            class_data_len,</span><br><span class="line">                            class_data,</span><br><span class="line">                            new_class_data_len,</span><br><span class="line">                            new_class_data,</span><br><span class="line">                            environment-&gt;mIsRetransformer);</span><br><span class="line">        restoreThrowable(jnienv, outstandingException);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>总之，定义好了Premain-Class方法我们一般会将定义的agent添加到Instrumentation中去，等到上诉的回掉函数被触发后，会进入到sun/instrument/InstrumentationImpl中执行transform方法，这个就是我们写入java的地方。<br>还有一种是启动后可以将当前jvm运行的方法attach到目标jvm中，这个其实是jvm启动了一个listerner线程，是在jvm启动的时候开启的，具体的代码我就不再贴了。但是，我们其实常常看到这个东西，比如dump，就是本地的jvm attach到目标jvm中了。包括阿里开源的arthas，我们使用的bytebuddy都是使用的后者attach-on。可以看下byte-buddy的Attacher，或者arthas的agent部分实现。这种方法也会触发上文提到的transformClassFile，可以修改一些class字节码，不过不能修改原有方法的参数，方法标签，继承关系等等。所以，目前包括Tomcat的热更新就是使用webclassLoader来进行动态监听和加载，而不能做到不卸载当前class直接修改，R大的解释是说，动态修改的成本太大，毕竟线上肯定有跑着的jvm，他们的实例对象如果都要修改的话，会有反优化的问题，不做深入的探讨。</p>
+<h2 id="关于Byte-Buddy"><a href="#关于Byte-Buddy" class="headerlink" title="关于Byte-Buddy"></a>关于Byte-Buddy</h2><p>我们目前的agent是基于Byte-Buddy来做的，Byte-Buddy算是在动态字节码修改业界最好的了，他封装了ASM，ASM是动态修改字节码的基石，通过对class，method的封装，使用vistor设计模式，有点深入理解字节码，篇幅有限，感兴趣可以自己去看下官网，他的设计文档写的很清楚。<br>将生成的class打印在本地，但是动态上次的class，但是可能不全，这里用arthas来展示，待会会解释下arthas是怎么做到的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Demo</span> </span>&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> String name=<span class="string">&quot;demo&quot;</span>;</span><br><span class="line">    <span class="keyword">private</span> String instance;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">int</span>  age;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">staticAction</span><span class="params">()</span></span>&#123;</span><br><span class="line">        System.out.println(<span class="string">&quot;staticAction is running&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;staticAction return&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span>  String <span class="title">action</span><span class="params">()</span></span>&#123;</span><br><span class="line">        System.out.println(<span class="string">&quot;this is action&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="string">&quot;action&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> com.tuitaking.demo;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.tuitaking.demo.Demo$auxiliary$3KYfr6QS;</span><br><span class="line"><span class="keyword">import</span> com.tuitaking.demo.Demo$auxiliary$PgyrfjiD;</span><br><span class="line"><span class="keyword">import</span> com.tuitaking.demo.ClazzMethodEnhancer;</span><br><span class="line"><span class="keyword">import</span> com.tuitaking.demo.InstanceMethodEnhancer;</span><br><span class="line"><span class="keyword">import</span> java.io.PrintStream;</span><br><span class="line"><span class="keyword">import</span> java.lang.management.ManagementFactory;</span><br><span class="line"><span class="keyword">import</span> java.lang.reflect.Method;</span><br><span class="line"><span class="keyword">import</span> java.util.concurrent.Callable;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Demo</span>  </span>&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> String name;</span><br><span class="line">    <span class="keyword">private</span> String instance;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">int</span> age;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">volatile</span> <span class="comment">/* synthetic */</span> InstanceMethodEnhancer delegate$q4kmfr1;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">volatile</span> <span class="comment">/* synthetic */</span> ClazzMethodEnhancer delegate$gpce861;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="comment">/* synthetic */</span> Method cachedValue$MbCQZc0r$rguilf1;</span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="comment">/* synthetic */</span> Method cachedValue$MbCQZc0r$dc5ffj3;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * Enabled aggressive block sorting</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">static</span> &#123;</span><br><span class="line">        ClassLoader.getSystemClassLoader().loadClass(<span class="string">&quot;net.bytebuddy.dynamic.Nexus&quot;</span>).getMethod(<span class="string">&quot;initialize&quot;</span>, Class.class, Integer.TYPE).invoke(<span class="keyword">null</span>, Demo.class, <span class="number">1651724666</span>);</span><br><span class="line">        cachedValue$MbCQZc0r$rguilf1 = Demo.class.getMethod(<span class="string">&quot;staticAction&quot;</span>, <span class="keyword">new</span> Class[<span class="number">0</span>]);</span><br><span class="line">        cachedValue$MbCQZc0r$dc5ffj3 = Demo.class.getMethod(<span class="string">&quot;action&quot;</span>, <span class="keyword">new</span> Class[<span class="number">0</span>]);</span><br><span class="line">        name = <span class="string">&quot;demo&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">action</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> (String)delegate$q4kmfr1.intercept(<span class="keyword">this</span>, <span class="keyword">new</span> Object[<span class="number">0</span>], <span class="keyword">new</span> Demo$auxiliary$3KYfr6QS(<span class="keyword">this</span>), cachedValue$MbCQZc0r$dc5ffj3);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">static</span> String <span class="title">staticAction</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> (String)delegate$gpce861.intercept(Demo.class, cachedValue$MbCQZc0r$rguilf1, <span class="keyword">new</span> Object[<span class="number">0</span>], <span class="keyword">new</span> Demo$auxiliary$PgyrfjiD());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="comment">/* synthetic */</span> String staticAction$original$7hPHhcRs() &#123;</span><br><span class="line">        System.out.println(<span class="string">&quot;staticAction is running&quot;</span>);</span><br><span class="line">        String name = ManagementFactory.getRuntimeMXBean().getName();</span><br><span class="line">        System.out.println(name);</span><br><span class="line">        String pid = name.split(<span class="string">&quot;@&quot;</span>)[<span class="number">0</span>];</span><br><span class="line">        System.out.println(<span class="string">&quot;Pid is:&quot;</span> + pid);</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;staticAction return&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="comment">/* synthetic */</span> String action$original$7hPHhcRs() &#123;</span><br><span class="line">        System.out.println(<span class="string">&quot;this is action&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="string">&quot;action&quot;</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">final</span> <span class="comment">/* synthetic */</span> String action$original$7hPHhcRs$accessor$MbCQZc0r() &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.action$original$7hPHhcRs();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">static</span> <span class="keyword">final</span> <span class="comment">/* synthetic */</span> String staticAction$original$7hPHhcRs$accessor$MbCQZc0r() &#123;</span><br><span class="line">        <span class="keyword">return</span> Demo.staticAction$original$7hPHhcRs();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> com.tuitaking.demo;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.tuitaking.demo.Demo;</span><br><span class="line"><span class="keyword">import</span> java.util.concurrent.Callable;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Demo</span>$<span class="title">auxiliary</span>$3<span class="title">KYfr6QS</span> <span class="keyword">implements</span> <span class="title">Runnable</span>,<span class="title">Callable</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> Demo argument0;</span><br><span class="line"></span><br><span class="line">    Demo$auxiliary$3KYfr6QS(Demo demo) &#123;</span><br><span class="line">        <span class="keyword">this</span>.argument0 = demo;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.argument0.action$original$7hPHhcRs$accessor$MbCQZc0r();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Object <span class="title">call</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">this</span>.argument0.action$original$7hPHhcRs$accessor$MbCQZc0r();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> com.tuitaking.demo.Demo;</span><br><span class="line"><span class="keyword">import</span> java.util.concurrent.Callable;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Demo</span>$<span class="title">auxiliary</span>$<span class="title">PgyrfjiD</span> <span class="keyword">implements</span> <span class="title">Runnable</span>,<span class="title">Callable</span> </span>&#123;</span><br><span class="line">    Demo$auxiliary$PgyrfjiD() &#123;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        Demo.staticAction$original$7hPHhcRs$accessor$MbCQZc0r();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> Object <span class="title">call</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> Demo.staticAction$original$7hPHhcRs$accessor$MbCQZc0r();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，其实动态字节码修改后的对象，只是将原来的方法名修改了，绕了一个圈以后在回来了,而且可以看到，静态方法的参数传递，是每次都会新建一个对象来存储参数，是否会增加yonggc的次数？你这个时候肯定在想，那么是不是线上运行的java，我们也能如此操作，答案是否定的。JVMTI规定了，retransformation方法（redfine方法）</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">The retransformation may change method bodies, <span class="function">the constant pool and <span class="title">attributes</span> <span class="params">(unless explicitly prohibited)</span>.</span></span><br><span class="line"><span class="function">The retransformation must not add, remove or rename fields or methods, change the signatures of methods, change modifiers, or change inheritance. </span></span><br><span class="line"><span class="function">The retransformation must not change the NestHost or NestMembers attributes</span></span><br></pre></td></tr></table></figure>
+
+<p>不能修改方法名字，增加或删除方法、域名，方法的标签、修饰符，或者继承关系。不过这么好玩的事情肯定有人做，我就没有研究啦。<a target="_blank" rel="noopener" href="https://github.com/dcevm/dcevm" title="dcevm">dcevm</a></p>
+<h2 id="附-arthas"><a href="#附-arthas" class="headerlink" title="附 arthas"></a>附 arthas</h2><p>arthas 是阿里开源的Java诊断工具。他的原理就是Agent_OnAttach，然后通过字节码增强，将线程栈帧进行插入实现debug，通过retransformation方法来dump类（jad）。</p>
+<p>顺便提一句，agent的jar会被bootstrap所加载，也就是说jar中的类会被bootstrapclassloader所加载。</p>
+<p>就想记流水帐一样，其实主要是希望自己以后在看不用像开始那样抓猫。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/jdk/" rel="tag"># jdk</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/03/11/%E6%BA%90%E4%BB%A3%E7%A0%81/netty/Netty%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%9E%8B/" rel="prev" title="Netty的线程模型">
+      <i class="fa fa-chevron-left"></i> Netty的线程模型
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/04/06/%E6%BA%90%E4%BB%A3%E7%A0%81/tomcat/Tomcat%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%9C%BA%E5%88%B6/" rel="next" title="Tomcat类加载机制">
+      Tomcat类加载机制 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%B7%E9%A6%96%E8%AF%AD"><span class="nav-number">1.</span> <span class="nav-text">卷首语</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E9%9B%B6%E5%9B%9E-Java"><span class="nav-number">2.</span> <span class="nav-text">第零回 Java</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E5%9B%9E-Class%E7%9A%84%E4%B8%80%E7%94%9F"><span class="nav-number">3.</span> <span class="nav-text">第一回  Class的一生</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E5%9B%9E-KClass-%E2%80%93-OOP-%E6%A8%A1%E5%9E%8B"><span class="nav-number">4.</span> <span class="nav-text">第二回 KClass – OOP 模型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E5%9B%9E-java%E7%9A%84agent"><span class="nav-number">5.</span> <span class="nav-text">第三回 java的agent</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E4%BA%8EByte-Buddy"><span class="nav-number">6.</span> <span class="nav-text">关于Byte-Buddy</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%99%84-arthas"><span class="nav-number">7.</span> <span class="nav-text">附 arthas</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

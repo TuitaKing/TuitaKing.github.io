@@ -1,37 +1,431 @@
-{% extends '_layout.swig' %}
-{% import '_macro/post.swig' as post_template %}
-{% import '_macro/sidebar.swig' as sidebar_template %}
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
 
 
-{% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
 
-{% block page_class %}page-post-detail{% endblock %}
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="卷首语在上文，关于 Post not found: ThreadLocal源码 ThreadLocal 的源码只能说走马观花的看了一下。ThreadLocal既然是为Thread服务的，那就没理由不去看下Thread的源码，还可以顺便去了解下InheritableThreadLocal。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Thread源码">
+<meta property="og:url" content="http://yoursite.com/2019/02/25/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/Thread%E6%BA%90%E7%A0%81/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="卷首语在上文，关于 Post not found: ThreadLocal源码 ThreadLocal 的源码只能说走马观花的看了一下。ThreadLocal既然是为Thread服务的，那就没理由不去看下Thread的源码，还可以顺便去了解下InheritableThreadLocal。">
+<meta property="og:locale">
+<meta property="og:image" content="http://yoursite.com/images/java%E7%9A%84%E7%BA%BF%E7%A8%8B%E4%B8%8D%E5%90%8C%E7%8A%B6%E6%80%81.jpeg">
+<meta property="article:published_time" content="2019-02-25T09:24:50.000Z">
+<meta property="article:modified_time" content="2020-11-24T10:30:59.207Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="JDK">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/java%E7%9A%84%E7%BA%BF%E7%A8%8B%E4%B8%8D%E5%90%8C%E7%8A%B6%E6%80%81.jpeg">
+
+<link rel="canonical" href="http://yoursite.com/2019/02/25/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/Thread%E6%BA%90%E7%A0%81/">
 
 
-{% block content %}
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
 
-  <div id="posts" class="posts-expand">
-    {{ post_template.render(page) }}
+  <title>Thread源码 | Keanu Lee's Blog</title>
+  
 
-    <div class="post-spread">
-      {% if theme.jiathis %}
-        {% include '_partials/share/jiathis.swig' %}
-      {% elseif theme.baidushare %}
-        {% include '_partials/share/baidushare.swig' %}
-      {% elseif theme.add_this_id %}
-        {% include '_partials/share/add-this.swig' %}
-      {% elseif theme.duoshuo_shortname and theme.duoshuo_share %}
-        {% include '_partials/share/duoshuo_share.swig' %}
-      {% endif %}
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
     </div>
   </div>
 
-{% endblock %}
+  <div class="site-meta">
 
-{% block sidebar %}
-  {{ sidebar_template.render(true) }}
-{% endblock %}
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
 
-{% block script_extra %}
-  {% include '_scripts/pages/post-details.swig' %}
-{% endblock %}
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/02/25/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/Thread%E6%BA%90%E7%A0%81/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Thread源码
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-02-25 17:24:50" itemprop="dateCreated datePublished" datetime="2019-02-25T17:24:50+08:00">2019-02-25</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-11-24 18:30:59" itemprop="dateModified" datetime="2020-11-24T18:30:59+08:00">2020-11-24</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81/" itemprop="url" rel="index"><span itemprop="name">源码</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="卷首语"><a href="#卷首语" class="headerlink" title="卷首语"></a>卷首语</h2><p>在上文，关于 <a href="#">Post not found: ThreadLocal源码 ThreadLocal</a> 的源码只能说走马观花的看了一下。<code>ThreadLocal</code>既然是为<code>Thread</code>服务的，那就没理由不去看下<code>Thread</code>的源码，还可以顺便去了解下<code>InheritableThreadLocal</code>。<br> <a id="more"></a></p>
+<h2 id="使用方式"><a href="#使用方式" class="headerlink" title="使用方式"></a>使用方式</h2><p>1.0<br> <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">PrimeThread</span> <span class="keyword">extends</span> <span class="title">Thread</span> </span>&#123;</span><br><span class="line">        <span class="keyword">long</span> minPrime;</span><br><span class="line">        PrimeThread(<span class="keyword">long</span> minPrime) &#123;</span><br><span class="line">            <span class="keyword">this</span>.minPrime = minPrime;</span><br><span class="line">        &#125;</span><br><span class="line"> </span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">            <span class="comment">// compute primes larger than minPrime</span></span><br><span class="line">             . . . </span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    PrimeThread p = <span class="keyword">new</span> PrimeThread(<span class="number">143</span>);</span><br><span class="line">    p.start();</span><br><span class="line">    </span><br></pre></td></tr></table></figure></p>
+<p>2.0 </p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">PrimeRun</span> <span class="keyword">implements</span> <span class="title">Runnable</span> </span>&#123;</span><br><span class="line">          <span class="keyword">long</span> minPrime;</span><br><span class="line">          PrimeRun(<span class="keyword">long</span> minPrime) &#123;</span><br><span class="line">              <span class="keyword">this</span>.minPrime = minPrime;</span><br><span class="line">          &#125;</span><br><span class="line"> </span><br><span class="line">          <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">              <span class="comment">// compute primes larger than minPrime</span></span><br><span class="line">              . . .</span><br><span class="line">          &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    PrimeRun p = <span class="keyword">new</span> PrimeRun(<span class="number">143</span>);</span><br><span class="line">    <span class="keyword">new</span> Thread(p).start();  </span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<p>jdk中的示例如上两种方式。也就是继承<code>Thread</code>或者实现<code>Runnable</code>。最后调用下<code>start()</code>方法。一个线程就开始了。</p>
+<h2 id="何为线程"><a href="#何为线程" class="headerlink" title="何为线程"></a>何为线程</h2><blockquote>
+<p>线程（英语：thread）是操作系统能够进行运算调度的最小单位。它被包含在进程之中，是进程中的实际运作单位。一条线程指的是进程中一个单一顺序的控制流，一个进程中可以并发多个线程，每条线程并行执行不同的任务。在Unix System V及SunOS中也被称为轻量进程（lightweight processes），但轻量进程更多指内核线程（kernel thread），而把用户线程（user thread）称为线程。</p>
+</blockquote>
+<p>上面的介绍来自<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E7%BA%BF%E7%A8%8B">wiki</a>（ps：后面的介绍都将是基于<code>POSIX线程</code>）。wiki的介绍十分的简练，线程就是一个CPU执行调度的最小单位，与之对应的是进程，进程是程序执行的基本实体。举个例子，CPU是一个流水线工厂，每次生产一个设备的过程算是一次进程的运行，线程是该设备生产过程中的安装部件的操作。对于整个工厂来说，可以同时生产不同的产品（可以同时运行不同的app），对于一个产品来说，他的某些部件是可以同时进行组装的（线程的并发），也有不能同时组装的（同步要求）。如果没有进程，该进程的线程也就不会存在。线程共享进程中的计算机资源（cpu时间，内存，寄存器等等）。</p>
+<h2 id="线程的生存周期"><a href="#线程的生存周期" class="headerlink" title="线程的生存周期"></a>线程的生存周期</h2><p>   <img src="/images/java%E7%9A%84%E7%BA%BF%E7%A8%8B%E4%B8%8D%E5%90%8C%E7%8A%B6%E6%80%81.jpeg" alt="线程的生存周期" title="线程的生存周期"><br>图片来自(<a target="_blank" rel="noopener" href="https://blog.csdn.net/pange1991/article/details/53860651">链接</a>)。</p>
+<h2 id="Thread类"><a href="#Thread类" class="headerlink" title="Thread类"></a>Thread类</h2><p>上面很简单的介绍了下线程和线程的基本概念，回到JDK的源码中来，继续研究下源码。Thread中很多的方法都是<code>native</code>的，<code>native</code>在java中相当于调用本地方法，个人理解为调用jvm或者自定义的其他语言写的方法。下文会有稍微详细的说明。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*native方法，注册本地方法，也就是将当前类中的方法和本地native方法进行意义对应*/</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">native</span> <span class="keyword">void</span> <span class="title">registerNatives</span><span class="params">()</span></span>;</span><br><span class="line"><span class="keyword">static</span> &#123;</span><br><span class="line">    registerNatives();</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//线程名</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> String name;</span><br><span class="line"><span class="comment">//调用优先级</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">int</span>            priority;</span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="keyword">private</span> Thread         threadQ;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">long</span>           eetop;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Whether or not to single_step this thread. */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">boolean</span>     single_step;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Whether or not the thread is a daemon thread. */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">boolean</span>     daemon = <span class="keyword">false</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* JVM state */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">boolean</span>     stillborn = <span class="keyword">false</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* What will be run. */</span></span><br><span class="line"><span class="keyword">private</span> Runnable target;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* The group of this thread */</span></span><br><span class="line"><span class="keyword">private</span> ThreadGroup group;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* The context ClassLoader for this thread */</span></span><br><span class="line"><span class="keyword">private</span> ClassLoader contextClassLoader;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* The inherited AccessControlContext of this thread */</span></span><br><span class="line"><span class="keyword">private</span> AccessControlContext inheritedAccessControlContext;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* For autonumbering anonymous threads. */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">int</span> threadInitNumber;</span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">synchronized</span> <span class="keyword">int</span> <span class="title">nextThreadNum</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> threadInitNumber++;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* ThreadLocal values pertaining to this thread. This map is maintained</span></span><br><span class="line"><span class="comment"> * by the ThreadLocal class. */</span></span><br><span class="line">ThreadLocal.ThreadLocalMap threadLocals = <span class="keyword">null</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * InheritableThreadLocal values pertaining to this thread. This map is</span></span><br><span class="line"><span class="comment"> * maintained by the InheritableThreadLocal class.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">ThreadLocal.ThreadLocalMap inheritableThreadLocals = <span class="keyword">null</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * The requested stack size for this thread, or 0 if the creator did</span></span><br><span class="line"><span class="comment"> * not specify a stack size.  It is up to the VM to do whatever it</span></span><br><span class="line"><span class="comment"> * likes with this number; some VMs will ignore it.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">long</span> stackSize;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * JVM-private state that persists after native thread termination.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">long</span> nativeParkEventPointer;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Thread ID</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">long</span> tid;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* For generating thread ID */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">long</span> threadSeqNumber;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Java thread status for tools,</span></span><br><span class="line"><span class="comment"> * initialized to indicate thread &#x27;not yet started&#x27;</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">int</span> threadStatus = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">synchronized</span> <span class="keyword">long</span> <span class="title">nextThreadID</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> ++threadSeqNumber;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * The argument supplied to the current call to</span></span><br><span class="line"><span class="comment"> * java.util.concurrent.locks.LockSupport.park.</span></span><br><span class="line"><span class="comment"> * Set by (private) java.util.concurrent.locks.LockSupport.setBlocker</span></span><br><span class="line"><span class="comment"> * Accessed using java.util.concurrent.locks.LockSupport.getBlocker</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">volatile</span> Object parkBlocker;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* The object in which this thread is blocked in an interruptible I/O</span></span><br><span class="line"><span class="comment"> * operation, if any.  The blocker&#x27;s interrupt method should be invoked</span></span><br><span class="line"><span class="comment"> * after setting this thread&#x27;s interrupt status.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> Interruptible blocker;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Object blockerLock = <span class="keyword">new</span> Object();</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Set the blocker field; invoked via sun.misc.SharedSecrets from java.nio code</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">blockedOn</span><span class="params">(Interruptible b)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">synchronized</span> (blockerLock) &#123;</span><br><span class="line">        blocker = b;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 优先级</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> <span class="keyword">int</span> MIN_PRIORITY = <span class="number">1</span>;</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> <span class="keyword">int</span> NORM_PRIORITY = <span class="number">5</span>;</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">static</span> <span class="keyword">int</span> MAX_PRIORITY = <span class="number">10</span>;</span><br></pre></td></tr></table></figure>
+<p>上面即为 <code>Thread</code>中部分的字段，<code>Thread</code>的构造器最后都指向了<code>init</code>方法。我们来看下<code>init</code>方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">(ThreadGroup g, Runnable target, String name,</span></span></span><br><span class="line"><span class="function"><span class="params">                     <span class="keyword">long</span> stackSize, AccessControlContext acc,</span></span></span><br><span class="line"><span class="function"><span class="params">                     <span class="keyword">boolean</span> inheritThreadLocals)</span> </span>&#123;</span><br><span class="line">       <span class="keyword">if</span> (name == <span class="keyword">null</span>) &#123;</span><br><span class="line">           <span class="keyword">throw</span> <span class="keyword">new</span> NullPointerException(<span class="string">&quot;name cannot be null&quot;</span>);</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="keyword">this</span>.name = name;</span><br><span class="line">       <span class="comment">//当前Thread对象，父线程</span></span><br><span class="line">       Thread parent = currentThread();</span><br><span class="line">       <span class="comment">//安全管理，查看线程组拥有的权限</span></span><br><span class="line">       SecurityManager security = System.getSecurityManager();</span><br><span class="line">       <span class="comment">//线程组 相关操作</span></span><br><span class="line">       <span class="keyword">if</span> (g == <span class="keyword">null</span>) &#123;</span><br><span class="line">           <span class="comment">/* Determine if it&#x27;s an applet or not */</span></span><br><span class="line"></span><br><span class="line">           <span class="comment">/* If there is a security manager, ask the security manager</span></span><br><span class="line"><span class="comment">              what to do. */</span></span><br><span class="line">           <span class="keyword">if</span> (security != <span class="keyword">null</span>) &#123;</span><br><span class="line">               g = security.getThreadGroup();</span><br><span class="line">           &#125;</span><br><span class="line"></span><br><span class="line">           <span class="comment">/* If the security doesn&#x27;t have a strong opinion of the matter</span></span><br><span class="line"><span class="comment">              use the parent thread group. */</span></span><br><span class="line">           <span class="keyword">if</span> (g == <span class="keyword">null</span>) &#123;</span><br><span class="line">               g = parent.getThreadGroup();</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line">       <span class="comment">/* checkAccess regardless of whether or not threadgroup is</span></span><br><span class="line"><span class="comment">          explicitly passed in. */</span></span><br><span class="line">       <span class="comment">//检查线程权限，主要是能否修改当前线程组</span></span><br><span class="line">       g.checkAccess();</span><br><span class="line"></span><br><span class="line">       <span class="comment">/*</span></span><br><span class="line"><span class="comment">        * Do we have the required permissions?</span></span><br><span class="line"><span class="comment">        */</span></span><br><span class="line">       <span class="keyword">if</span> (security != <span class="keyword">null</span>) &#123;</span><br><span class="line">           <span class="keyword">if</span> (isCCLOverridden(getClass())) &#123;</span><br><span class="line">               <span class="comment">//检查权限</span></span><br><span class="line">               security.checkPermission(SUBCLASS_IMPLEMENTATION_PERMISSION);</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line">       <span class="comment">// 和线程组相关的操作，按下不表</span></span><br><span class="line">       g.addUnstarted();</span><br><span class="line"></span><br><span class="line">       <span class="keyword">this</span>.group = g;</span><br><span class="line">       <span class="comment">//是否为守护线程</span></span><br><span class="line">       <span class="keyword">this</span>.daemon = parent.isDaemon();</span><br><span class="line">       <span class="comment">//获取优先级</span></span><br><span class="line">       <span class="keyword">this</span>.priority = parent.getPriority();</span><br><span class="line">       <span class="comment">//isCCLOverridden主要是检查权限</span></span><br><span class="line">       <span class="keyword">if</span> (security == <span class="keyword">null</span> || isCCLOverridden(parent.getClass()))</span><br><span class="line">       <span class="comment">//设置上下文classloader</span></span><br><span class="line">           <span class="keyword">this</span>.contextClassLoader = parent.getContextClassLoader();</span><br><span class="line">       <span class="keyword">else</span></span><br><span class="line">           <span class="keyword">this</span>.contextClassLoader = parent.contextClassLoader;</span><br><span class="line">         <span class="comment">//控制权限的继承？  </span></span><br><span class="line">       <span class="keyword">this</span>.inheritedAccessControlContext =</span><br><span class="line">               acc != <span class="keyword">null</span> ? acc : AccessController.getContext();</span><br><span class="line">       <span class="comment">//runnable的实现</span></span><br><span class="line">       <span class="keyword">this</span>.target = target;</span><br><span class="line">       <span class="comment">//设置运行优先级</span></span><br><span class="line">       setPriority(priority);</span><br><span class="line">       <span class="comment">//如果父级inheritableThreadLocals不为空，则将父线程的inheritableThreadLocals传递给子线程</span></span><br><span class="line">       <span class="keyword">if</span> (inheritThreadLocals &amp;&amp; parent.inheritableThreadLocals != <span class="keyword">null</span>)</span><br><span class="line">           <span class="keyword">this</span>.inheritableThreadLocals =</span><br><span class="line">               ThreadLocal.createInheritedMap(parent.inheritableThreadLocals);</span><br><span class="line">       <span class="comment">/* Stash the specified stack size in case the VM cares */</span></span><br><span class="line">       <span class="comment">//字面上是说只有VM才关心的栈打消</span></span><br><span class="line">       <span class="keyword">this</span>.stackSize = stackSize;</span><br><span class="line"></span><br><span class="line">       <span class="comment">/* Set thread ID */</span></span><br><span class="line">       tid = nextThreadID();</span><br><span class="line">   &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+<p>上面就算是创建了一个<code>Thread</code>对象，但是，这个对象目前只是存在于内存中的对象，和千万普通的java对象一样，并不具备线程的语意。暂时不提具体的<code>Thread</code>和底层的线程结合，老看看<code>createInheritedMap</code>，回到<code>ThreadLocal</code>这个老朋友的桌子上去。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> ThreadLocalMap <span class="title">createInheritedMap</span><span class="params">(ThreadLocalMap parentMap)</span> </span>&#123;</span><br><span class="line">     <span class="keyword">return</span> <span class="keyword">new</span> ThreadLocalMap(parentMap);</span><br><span class="line"> &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">private</span> <span class="title">ThreadLocalMap</span><span class="params">(ThreadLocalMap parentMap)</span> </span>&#123;</span><br><span class="line">         <span class="comment">//将传入的父级ThreadLocalMap中的map（table）读取出来</span></span><br><span class="line">         Entry[] parentTable = parentMap.table;</span><br><span class="line">         <span class="keyword">int</span> len = parentTable.length;</span><br><span class="line">         setThreshold(len);</span><br><span class="line">         <span class="comment">//新建和父级table相同size的entry数组，即新的map（table）</span></span><br><span class="line">         table = <span class="keyword">new</span> Entry[len];</span><br><span class="line">         <span class="comment">//循环的方式将父级值传入当前table中</span></span><br><span class="line">         <span class="keyword">for</span> (<span class="keyword">int</span> j = <span class="number">0</span>; j &lt; len; j++) &#123;</span><br><span class="line">             Entry e = parentTable[j];</span><br><span class="line">             <span class="keyword">if</span> (e != <span class="keyword">null</span>) &#123;</span><br><span class="line">                 <span class="meta">@SuppressWarnings(&quot;unchecked&quot;)</span></span><br><span class="line">                 <span class="comment">//获取父级中的Threadlocal对象</span></span><br><span class="line">                 ThreadLocal&lt;Object&gt; key = (ThreadLocal&lt;Object&gt;) e.get();</span><br><span class="line">                 <span class="keyword">if</span> (key != <span class="keyword">null</span>) &#123;</span><br><span class="line">                     <span class="comment">//传入父级的值，并且调用子级的childValue，</span></span><br><span class="line">                     <span class="comment">//该方法在InheritableThreadLocal中直接返回传入的父级值。</span></span><br><span class="line">                     <span class="comment">//如果没有自己实现childValue。那么传入的值和父级的值指向的是同一个对象</span></span><br><span class="line">                     Object value = key.childValue(e.value);</span><br><span class="line">                     <span class="comment">//将value放入entity中，这里的key是父级的Threadloca对象</span></span><br><span class="line">                     Entry c = <span class="keyword">new</span> Entry(key, value);</span><br><span class="line">                     <span class="comment">//获取key的index</span></span><br><span class="line">                     <span class="keyword">int</span> h = key.threadLocalHashCode &amp; (len - <span class="number">1</span>);</span><br><span class="line">                     <span class="comment">//如果index有值，则往下+1</span></span><br><span class="line">                     <span class="keyword">while</span> (table[h] != <span class="keyword">null</span>)</span><br><span class="line">                     <span class="comment">//这里我开始保有疑问，如果当前的table的index有值了，</span></span><br><span class="line">                     <span class="comment">//那么+1后，threadloca怎么能够找到属于自己的对象了，</span></span><br><span class="line">                     <span class="comment">//原来在获取的时候会判断一下（ e.get() == key）只有当前是同一个对象才直接拿到值</span></span><br><span class="line">                     <span class="comment">//否则getEntryAfterMiss()方法中会不断的往下找。</span></span><br><span class="line">                         h = nextIndex(h, len);</span><br><span class="line">                     <span class="comment">//将值放入当前table中</span></span><br><span class="line">                     table[h] = c;</span><br><span class="line">                     size++;</span><br><span class="line">                 &#125;</span><br><span class="line">             &#125;</span><br><span class="line">         &#125;</span><br><span class="line">     &#125;</span><br></pre></td></tr></table></figure>
+<p>综上所述，<code>InheritableThreadLocal</code>是在线程创建的时候会去父级线程的<code>inheritThreadLocals</code>中进行数值的’copy’,这个数据的’copy’如果自己不实现<code>childValue</code>方法的话，其实只是浅拷贝，也就是指向的是同一块地址。</p>
+<h2 id="浅入JVM"><a href="#浅入JVM" class="headerlink" title="浅入JVM"></a>浅入JVM</h2><p>上文已经提到过，其实在线程被<code>new</code>出来后，没有和操作系统的<code>thread</code>进行绑定。因为线程是cpu调度的基本单位，那么java的<code>Thread</code>最后肯定是会和当前平台支持的<code>thread</code>结合在一起的，那么什么时候开始一个线程才算启动呢，就是被调用<code>start()</code>方法的时候。通过查看源码可以看到，<code>start()</code>方法最后是调用了<code>native</code>方法<code>start0()</code>。</p>
+<blockquote>
+<p>pthread，是Unix-like中的POSIX的线程标准的实现。在linux中，其实是没有线程的概念的，线程就是轻量级进程。所谓轻量级进程的轻量是来源于他所携带的资源和上下文切换比较原始创建的进行要少。pthread在创建的时候是使用的clone原进程来的，对于LinuxThreads，它使用（CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND）参数来调用clone()创建”线程”，表示共享内存、共享文件系统访问计数、共享文件描述符表，以及共享信号处理方式。<a target="_blank" rel="noopener" href="https://www.ibm.com/developerworks/cn/linux/kernel/l-thread/index.html">详情可见</a>。</p>
+</blockquote>
+<p><code>registerNatives()</code>方法会在jvm中找到对应当前对象的<code>native</code>方法， <code>Thread.c</code>中就有，opjdk中见(<a target="_blank" rel="noopener" href="https://github.com/TuitaKing/openjdk/blob/jdk/jdk/src/java.base/share/native/libjava/Thread.c">Thread.c</a>)。可见<code>start0()</code>方法是和<code>JVM_StartThread</code>进行一一对应的。<a target="_blank" rel="noopener" href="https://github.com/TuitaKing/openjdk/blob/jdk/jdk/src/hotspot/share/prims/jvm.cpp">JVM_StartThread</a>实现可以看到最后还是和<code>JavaThread</code>这个类组合在一起的。最后java中的线程是会和pthread（linux环境下）进行绑定的。而且pthread是一创建就开始执行的。<br>比较尴尬的是，我目前只能看到这里了。大致了解到的就是java的一个线程是和pthread一一对应的，也就是说线程的调度是交给系统的，也就是说一个Thread在调用start的时候，就会创建一个系统级的线程（轻量级进程）。</p>
+<h2 id="卷尾语"><a href="#卷尾语" class="headerlink" title="卷尾语"></a>卷尾语</h2><p>2019年2月26日，原本雄心勃勃想把<code>Thread</code>的jvm实现都搞清楚，试了下发现坑太大了，而且对c++语言的不熟悉，包括学习深入的问题，只能暂时到此为止，如果后续有不一样的想法或者想从头到尾弄明白，那就只能到时候再说。不过目前就我个人的学习来说是已经足够了的。<br>再：其实我很不喜欢粘贴源代码这么来。貌似也只能这样了</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/JDK/" rel="tag"># JDK</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/02/15/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/ThreadLocal%E6%BA%90%E7%A0%81/" rel="prev" title="ThreadLocal源码">
+      <i class="fa fa-chevron-left"></i> ThreadLocal源码
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/02/28/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6%E4%B8%8E%E6%8A%80%E6%9C%AF/%E7%AE%97%E6%B3%95/KMP%E7%AE%97%E6%B3%95/" rel="next" title="KMP算法">
+      KMP算法 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%B7%E9%A6%96%E8%AF%AD"><span class="nav-number">1.</span> <span class="nav-text">卷首语</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8%E6%96%B9%E5%BC%8F"><span class="nav-number">2.</span> <span class="nav-text">使用方式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%95%E4%B8%BA%E7%BA%BF%E7%A8%8B"><span class="nav-number">3.</span> <span class="nav-text">何为线程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%BA%BF%E7%A8%8B%E7%9A%84%E7%94%9F%E5%AD%98%E5%91%A8%E6%9C%9F"><span class="nav-number">4.</span> <span class="nav-text">线程的生存周期</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Thread%E7%B1%BB"><span class="nav-number">5.</span> <span class="nav-text">Thread类</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B5%85%E5%85%A5JVM"><span class="nav-number">6.</span> <span class="nav-text">浅入JVM</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%B7%E5%B0%BE%E8%AF%AD"><span class="nav-number">7.</span> <span class="nav-text">卷尾语</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

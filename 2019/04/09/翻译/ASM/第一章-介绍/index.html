@@ -1,37 +1,467 @@
-{% extends '_layout.swig' %}
-{% import '_macro/post.swig' as post_template %}
-{% import '_macro/sidebar.swig' as sidebar_template %}
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
 
 
-{% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
 
-{% block page_class %}page-post-detail{% endblock %}
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="1.1 动机程序的分析（analysis），创建（generation）和转变（transformation）在下面的场景中是非常有用的技巧：  程序分析，可以从简单的语意分析到全方面的语义分析，可以用于查找程序中潜在的bugs,删除不必要的代码，逆向工程代码，等等 程序的生成是在编译器中使用。包括传统的编译器，也有在分布式程序中使用的桩和骨架（stub or skeleton compilers">
+<meta property="og:type" content="article">
+<meta property="og:title" content="第一章 介绍">
+<meta property="og:url" content="http://yoursite.com/2019/04/09/%E7%BF%BB%E8%AF%91/ASM/%E7%AC%AC%E4%B8%80%E7%AB%A0-%E4%BB%8B%E7%BB%8D/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="1.1 动机程序的分析（analysis），创建（generation）和转变（transformation）在下面的场景中是非常有用的技巧：  程序分析，可以从简单的语意分析到全方面的语义分析，可以用于查找程序中潜在的bugs,删除不必要的代码，逆向工程代码，等等 程序的生成是在编译器中使用。包括传统的编译器，也有在分布式程序中使用的桩和骨架（stub or skeleton compilers">
+<meta property="og:locale">
+<meta property="og:image" content="http://yoursite.com/images/asm/1/Asm1.2.3.png">
+<meta property="article:published_time" content="2019-04-09T04:34:16.000Z">
+<meta property="article:modified_time" content="2020-11-24T10:30:59.209Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="ASM 翻译">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/asm/1/Asm1.2.3.png">
+
+<link rel="canonical" href="http://yoursite.com/2019/04/09/%E7%BF%BB%E8%AF%91/ASM/%E7%AC%AC%E4%B8%80%E7%AB%A0-%E4%BB%8B%E7%BB%8D/">
 
 
-{% block content %}
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
 
-  <div id="posts" class="posts-expand">
-    {{ post_template.render(page) }}
+  <title>第一章 介绍 | Keanu Lee's Blog</title>
+  
 
-    <div class="post-spread">
-      {% if theme.jiathis %}
-        {% include '_partials/share/jiathis.swig' %}
-      {% elseif theme.baidushare %}
-        {% include '_partials/share/baidushare.swig' %}
-      {% elseif theme.add_this_id %}
-        {% include '_partials/share/add-this.swig' %}
-      {% elseif theme.duoshuo_shortname and theme.duoshuo_share %}
-        {% include '_partials/share/duoshuo_share.swig' %}
-      {% endif %}
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
     </div>
   </div>
 
-{% endblock %}
+  <div class="site-meta">
 
-{% block sidebar %}
-  {{ sidebar_template.render(true) }}
-{% endblock %}
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
 
-{% block script_extra %}
-  {% include '_scripts/pages/post-details.swig' %}
-{% endblock %}
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/04/09/%E7%BF%BB%E8%AF%91/ASM/%E7%AC%AC%E4%B8%80%E7%AB%A0-%E4%BB%8B%E7%BB%8D/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          第一章 介绍
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-04-09 12:34:16" itemprop="dateCreated datePublished" datetime="2019-04-09T12:34:16+08:00">2019-04-09</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-11-24 18:30:59" itemprop="dateModified" datetime="2020-11-24T18:30:59+08:00">2020-11-24</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%BF%BB%E8%AF%91/" itemprop="url" rel="index"><span itemprop="name">翻译</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="1-1-动机"><a href="#1-1-动机" class="headerlink" title="1.1 动机"></a>1.1 动机</h2><p>程序的分析（analysis），创建（generation）和转变（transformation）在下面的场景中是非常有用的技巧：</p>
+<ol>
+<li>程序分析，可以从简单的语意分析到全方面的语义分析，可以用于查找程序中潜在的bugs,删除不必要的代码，逆向工程代码，等等</li>
+<li>程序的生成是在编译器中使用。包括传统的编译器，也有在分布式程序中使用的桩和骨架（stub or skeleton compilers）编译器，即时编译器，等等</li>
+<li>程序转变可以被用于优化或者困扰(obfuscate)程序,插入debug或者性能监控代码，为原来的方法做个切面，等等。<a id="more"></a>
+所有的这些技巧可以被用于很多的语言，但是该怎么做都要依赖与具体的语言机制。Java可以使用java源代码或者编译后的class文件来进行操作。在编译后的class中进行操作明显的好处就是不需要源代码，代码的转换可以使用在任何方法上，包括闭源和商业的代码。另外的一个好处就是在编译后的代码中进行操作让运行时分析，产生和转换成为一种可能，也就是在他们被加载进JVM之前（创建代码和编译源代码都是可行的，只是非常的慢而且要进行编译）。这么做的好处就是桩编译器和切面类对用户是透明的。</li>
+</ol>
+<p>为了程序的分析，产生和转换技术，很多语言关于分析，产生和转换代码的工具都被实现出来，java当然也不例外。ASM是针对于java语言的一种工具，设计主要用于实时（也可以是离线的）class的创建和转换。ASM库设计成在编译后的class文件上进行操作。他也被设计的尽量快和尽量小。让它运行速度很快而不会影响到原本程序是十分重要的，让它尽量小不对内存的运行环境有影响，也不将源程序膨胀很大也是很重要的。</p>
+<p>ASM不仅仅是创建和转换变异后的class文件的，也是最新和最有效率的工具。他可以在[<a href="http://asm.objectweb.org]">http://asm.objectweb.org]</a>(“<a target="_blank" rel="noopener" href="http://asm.objectweb.org&quot;/">http://asm.objectweb.org&quot;</a> 下载连接)下载。它的优势如下：</p>
+<ol>
+<li>它有简单的优雅的设计和标准（modular）的API便于使用</li>
+<li>它的文档完整而且有Eclipse的插件</li>
+<li>它支持最新的java 7 （现在都12了）</li>
+<li>它十分的小，快和健壮（robust）</li>
+<li>它的用户社区可以为新手提供帮助</li>
+<li>它的开源协议几乎可以让你做你任何想做的事情</li>
+</ol>
+<h2 id="1-2综述"><a href="#1-2综述" class="headerlink" title="1.2综述"></a>1.2综述</h2><h3 id="1-2-1-Scope（使用范围）"><a href="#1-2-1-Scope（使用范围）" class="headerlink" title="1.2.1 Scope（使用范围）"></a>1.2.1 Scope（使用范围）</h3><p>SM库的目标是生成，转换和分析已编译的 Java类，表示为字节数组（因为它们存储在磁盘上并加载在Java虚拟机中）。为了这个目的，ASM提供了用于读（read）、写（write）和转换（transform）字节数组的比直接读字节高级的工具，例如：数字常数，字符串，java标志符，java类型，java class结构元素，等。特别注意的是ASM可操作范围是严格限制在读，写，分析和转换class文件，类的加载过程是不再该范围内的。</p>
+<h3 id="1-2-2-Model-（模型）"><a href="#1-2-2-Model-（模型）" class="headerlink" title="1.2.2 Model （模型）"></a>1.2.2 Model （模型）</h3><p>ASM包含两种API：core API提供基于事件（event based）来表示类的API，tree API提供基于对象（object based）表示类的API</p>
+<ul>
+<li>使用基于事件的API模型将一个class视为一组连续的事件，每一个事件包括这个class中的元素，包括他的头文件（header），域（field），方法声明（method declaration），一个指令（instruction），等等。基于事件的API 定义一组可能发生的事件和他们发生的时间，提供一个类解析器（class parser）并且为每个被解析的元素创建一个事件，一个类写入器（class writer）从一系列事件中产生编译后的class。</li>
+<li>基于对象的API模型将对象的视为一个对象树（tree），每一个对象都是这个class文件的一部分，比如class文件本书，一个域，一个方法，方法的声明等。每一个对象都拥有他所表示的部分的引用。基于对象的API提供了一种将表示类的事件序列转换为表示同一类的对象树的方法，反之也提供将对象树转换为等效的事件序列的方法。换句话说，基于对象的API是建立在基于事件的API上的。</li>
+</ul>
+<p>这两种API可以类比SAX和DOM的在xml中的关系：基于事件的API类似于SAX，而基于对象的API就是DOM API。基于对象的API是建立在基于事件的API就如同是DOM是建立在SAX上的。</p>
+<p>ASM之所以提供两种API是因为没有更好的统一API，因为每种API都有他的有点和缺点：</p>
+<ul>
+<li>基于事件API比基于对象的API要快而且省累成，因为没有必要一次性将整个class拉入内存中。（如同SAX和DOM的区别）</li>
+<li>然而基于事件API实现类的转换编码会比较困难，因为任何时候都只有类的一个元素（当前事件对应的元素），而基于对象的API整个class都在类中。</li>
+</ul>
+<p>注意两个API同时只能一次处理一个class文件，和其他的class是独立的，没有关于类的继承信息是可以被操作的，如果一个class的转换影响到其他的类，取决于使用者如何进行操作。</p>
+<h3 id="1-2-3-Architecture-（架构）"><a href="#1-2-3-Architecture-（架构）" class="headerlink" title="1.2.3 Architecture （架构）"></a>1.2.3 Architecture （架构）</h3><p>ASM的架构十分的强大，基于事件的API围绕事件的产生者（文件解析者[(the class parser]）进行组织,事件消费者（文件写入者[the class writer)]）和各种预先定义好的可以新增生产者，消费者和过滤器的过滤器。使用这些API仅仅只需要两部处理：</p>
+<ol>
+<li>将事件生产者，过滤器和消费者组件组装成可能较为复杂的结构中（assembling event producer, filter and consumer componentsinto possibly complex architectures,）</li>
+<li>启动事件产生者用于产生和转化事件and then starting the event producers to run the generation or transformation process</li>
+</ol>
+<blockquote>
+<p>The object based API also has an architectural aspect: indeed class generator or transformer components that operate on object trees can be composed, the links between them representing the order of transformations.<br>基于对象的API具有架构切面：class文件的创建器和转换器可以被Object Tree构建出来，他们之间链接顺序表示了他们的转换顺序。</p>
+</blockquote>
+<p>尽管大多数基于ASM的框架都比较简单，但是也可以使用ASM创建出如下图的复杂结构。每一个箭头表示基于事件或者基于对象的API在class的parsers， writers or transformers之间通信，而基于事件和基于对象API之间的转换可能发生在任何的地方：<br><img src="/images/asm/1/Asm1.2.3.png" alt="较复杂的结构" title="较复杂的Chain">;</p>
+<h2 id="1-3-Organization-代码的组织"><a href="#1-3-Organization-代码的组织" class="headerlink" title="1.3 Organization 代码的组织"></a>1.3 Organization 代码的组织</h2><p>ASM的库被组织成下面的几个jar中:</p>
+<ul>
+<li><p><code>the org.objectweb.asm</code> 和 <code>org.objectweb.asm.signature</code>  定义了事件驱动的API，提供了class文件的parser和writer组件。他们打包在<code>asm.jar</code>中。</p>
+</li>
+<li><p><code>org.objectweb.asm.util</code> 包，在 <code>asm-util.jar</code>中，提供几个基于核心API创建的API，可以在开发和测试ASM应用的时候的使用它们。</p>
+</li>
+<li><p><code>org.objectweb.asm.commons</code> 提供了几个被预定义好的<code>transformers</code>，它们大部分基于核心API，打包在<code>asm-commons.jar</code>.</p>
+</li>
+<li><p><code>org.objectweb.asm.tree</code> 位于<code>asm-tree.jar</code>，定义了基于对象的API，而且提供基于事件API和基于对象API的转换工具类。</p>
+</li>
+<li><p><code>org.objectweb.asm.tree.analysis</code> 提供了class的分析框架和几个预定义的class非农类，基于Tree API。打包在<code>asm-analysis.jar</code>中。</p>
+<p>本文档被组织成两部分，第一部分是核心API，包括<code>asm</code>,<code>asm-util</code>和<code>asm-commons</code>包中。第二部分主要是介绍tree API，位于<code>asm-tree</code>和<code>asm-analysis</code>中。每一部分都至少有一章节用来便是API对<code>class</code>，<code>method</code>，<code>annotations</code>,一般属性等的操作。</p>
+<blockquote>
+<p>Each part contains at least one chapter for the API related to classes, one chapter for the API related to methods, and one chapter for the API related to annotations, generic types,etc.</p>
+</blockquote>
+<p>每一章都会覆盖程序的接口，组件和预定义的组件。</p>
+<blockquote>
+<p>Each chapter covers the programming interfaces as well as the related tools and predefined components</p>
+</blockquote>
+<p>例子的源代码都可以在<a target="_blank" rel="noopener" href="http://asm.objectweb.org/" title="ASM官网">ASM官网</a>中找到。<br>这样便于介绍class文件的特性，但是有时候需要分开ASM的某一个类在哥哥章节中，也导致该文档需要按顺序阅读，如果需要查看ASM的API，请查看<a target="_blank" rel="noopener" href="http://asm.objectweb.org/asm30/javadoc/user/overview-summary.html" title="Javadoc">Javadoc</a>.</p>
+</li>
+</ul>
+<p>  附：<br>  英语实在是捉襟见肘。错误肯定很多。2019-4-9</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ASM-%E7%BF%BB%E8%AF%91/" rel="tag"># ASM 翻译</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/04/06/%E6%BA%90%E4%BB%A3%E7%A0%81/tomcat/Tomcat%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%9C%BA%E5%88%B6/" rel="prev" title="Tomcat类加载机制">
+      <i class="fa fa-chevron-left"></i> Tomcat类加载机制
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/04/09/%E7%BF%BB%E8%AF%91/ASM/%E7%AC%AC%E4%BA%8C%E7%AB%A0-Classes/" rel="next" title="第二章 Classes">
+      第二章 Classes <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-1-%E5%8A%A8%E6%9C%BA"><span class="nav-number">1.</span> <span class="nav-text">1.1 动机</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-2%E7%BB%BC%E8%BF%B0"><span class="nav-number">2.</span> <span class="nav-text">1.2综述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-1-Scope%EF%BC%88%E4%BD%BF%E7%94%A8%E8%8C%83%E5%9B%B4%EF%BC%89"><span class="nav-number">2.1.</span> <span class="nav-text">1.2.1 Scope（使用范围）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-2-Model-%EF%BC%88%E6%A8%A1%E5%9E%8B%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">1.2.2 Model （模型）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-3-Architecture-%EF%BC%88%E6%9E%B6%E6%9E%84%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">1.2.3 Architecture （架构）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-3-Organization-%E4%BB%A3%E7%A0%81%E7%9A%84%E7%BB%84%E7%BB%87"><span class="nav-number">3.</span> <span class="nav-text">1.3 Organization 代码的组织</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

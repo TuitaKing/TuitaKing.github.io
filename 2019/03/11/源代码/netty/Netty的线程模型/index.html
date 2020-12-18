@@ -1,37 +1,501 @@
-{% extends '_layout.swig' %}
-{% import '_macro/post.swig' as post_template %}
-{% import '_macro/sidebar.swig' as sidebar_template %}
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
 
 
-{% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
 
-{% block page_class %}page-post-detail{% endblock %}
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="卷首语：本文将的简单介绍下Netty（4.1版本）的情况，主要是介绍它的线程模型即Reactor设计模式，内存分配模型即JEmallco内存分配算法.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Netty的线程模型">
+<meta property="og:url" content="http://yoursite.com/2019/03/11/%E6%BA%90%E4%BB%A3%E7%A0%81/netty/Netty%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%9E%8B/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="卷首语：本文将的简单介绍下Netty（4.1版本）的情况，主要是介绍它的线程模型即Reactor设计模式，内存分配模型即JEmallco内存分配算法.">
+<meta property="og:locale">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543732245254-17ec4b5b-d0aa-40ea-9d70-b583ed2523a1.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543732282862-badd09fc-1e96-41d2-bf58-b495cbc9252c.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543732300666-58372793-e4bb-4066-979a-dda809fa33ab.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543733031804-7c0abe2e-d83a-45f2-a07e-f351c4d034b6.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543733775061-94800a28-9e7d-4118-8fb8-507e27df8584.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543899896188-9befea54-a555-4584-a4bd-1a2007fd8786.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543900258974-6295b240-f175-4f31-8672-b14871fce107.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1545055025727-62dd9b2d-8e1c-46b5-8aa1-5cb697391031.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1544856010229-1622e6dc-aa45-4b92-9f9d-a362f5173d16.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1544856534691-3d4eaecc-fce7-4237-bb80-bcfc198a4d6c.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1544859258627-4c8f3db1-f303-4dae-87e0-73f55009a28a.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1545897190212-44279084-5cef-478b-9b7e-533675bf764e.png">
+<meta property="og:image" content="https://cdn.nlark.com/yuque/18/2019/png/134776/1546414879304-1c62bdc1-7a18-49ca-98fe-663a06b65905.png">
+<meta property="article:published_time" content="2019-03-11T13:34:44.000Z">
+<meta property="article:modified_time" content="2020-11-24T10:30:59.208Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="Netty">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://cdn.nlark.com/yuque/18/2018/png/134776/1543732245254-17ec4b5b-d0aa-40ea-9d70-b583ed2523a1.png">
+
+<link rel="canonical" href="http://yoursite.com/2019/03/11/%E6%BA%90%E4%BB%A3%E7%A0%81/netty/Netty%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%9E%8B/">
 
 
-{% block content %}
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
 
-  <div id="posts" class="posts-expand">
-    {{ post_template.render(page) }}
+  <title>Netty的线程模型 | Keanu Lee's Blog</title>
+  
 
-    <div class="post-spread">
-      {% if theme.jiathis %}
-        {% include '_partials/share/jiathis.swig' %}
-      {% elseif theme.baidushare %}
-        {% include '_partials/share/baidushare.swig' %}
-      {% elseif theme.add_this_id %}
-        {% include '_partials/share/add-this.swig' %}
-      {% elseif theme.duoshuo_shortname and theme.duoshuo_share %}
-        {% include '_partials/share/duoshuo_share.swig' %}
-      {% endif %}
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
     </div>
   </div>
 
-{% endblock %}
+  <div class="site-meta">
 
-{% block sidebar %}
-  {{ sidebar_template.render(true) }}
-{% endblock %}
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
 
-{% block script_extra %}
-  {% include '_scripts/pages/post-details.swig' %}
-{% endblock %}
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/11/%E6%BA%90%E4%BB%A3%E7%A0%81/netty/Netty%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%9E%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Netty的线程模型
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              <time title="Created: 2019-03-11 21:34:44" itemprop="dateCreated datePublished" datetime="2019-03-11T21:34:44+08:00">2019-03-11</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2020-11-24 18:30:59" itemprop="dateModified" datetime="2020-11-24T18:30:59+08:00">2020-11-24</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81/" itemprop="url" rel="index"><span itemprop="name">源码</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="卷首语："><a href="#卷首语：" class="headerlink" title="卷首语："></a>卷首语：</h1><p>本文将的简单介绍下Netty（4.1版本）的情况，主要是介绍它的线程模型即Reactor设计模式，内存分配模型即JEmallco内存分配算法.<br> <a id="more"></a></p>
+<h1 id="1-0-什么是-Netty？"><a href="#1-0-什么是-Netty？" class="headerlink" title="1.0 什么是 Netty？"></a>1.0 什么是 Netty？</h1><p>​    Netty 是一款异步的事件驱动的网络应用程序框架，支持快速地开发可维护的高性能的面向协议的服务器和客户端。</p>
+<h2 id="1-1-预备知识"><a href="#1-1-预备知识" class="headerlink" title="1.1 预备知识"></a>1.1 预备知识</h2><p> 好的框架都是有很强的理论知识来作为基础的，Netty主要是Reactor设计模式来处理连接和处理数据。Reactor的<a target="_blank" rel="noopener" href="http://www.dre.vanderbilt.edu/~schmidt/PDF/reactor-siemens.pdf">论文</a>中介绍了一个基于linux中的select()方法的I/O复用模型，用于处理连接和连接对应的消息处理。</p>
+<h3 id="1-1-1-I-O复用模型"><a href="#1-1-1-I-O复用模型" class="headerlink" title="1.1.1   I/O复用模型"></a>1.1.1   I/O复用模型</h3><p> 一个输入操作通常包括两个不同的阶段：<br>                             1）等待数据准备好<br>                             2）从内核向进程复制数据<br>  对于一个套接字上的输入操作，第一步通常涉及等待数据从网络中到达，当所等待分钟到达时，它被复制到内核中的某个缓冲区。第二步就是把数据从内核缓冲区复制到应用进程缓冲区。</p>
+<p>整个数据的传入和传出一共可以分成三个IO事件 accept，read，write</p>
+<h4 id="A-阻塞式-I-O模型"><a href="#A-阻塞式-I-O模型" class="headerlink" title="A 阻塞式 I/O模型"></a>A 阻塞式 I/O模型</h4><pre><code>          以前最流行的I/O模型式阻塞型I/O模型，如图</code></pre>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1543732245254-17ec4b5b-d0aa-40ea-9d70-b583ed2523a1.png" alt="image.png | center | 691x358"></p>
+<p>                           示例代码(<a target="_blank" rel="noopener" href="https://github.com/TuitaKing/nioDemo/blob/master/src/main/java/com/tuitaking/bio/BIOServer.java">链接</a>):</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">ssocket &#x3D; new ServerSocket(port);</span><br><span class="line">     while (true) &#123;</span><br><span class="line">         Socket socket &#x3D; ssocket.accept();&#x2F;&#x2F; 不断接收请求</span><br><span class="line">         new Thread(new ServerHandler(socket)).start();</span><br><span class="line">     &#125;</span><br></pre></td></tr></table></figure>
+<p>可以看到，主线程会一直阻塞在accept上，而且来一个请求就新建一个线程进行处理，对应的处理逻辑可以包括Http头文件解析，RPC协议解析等等。但是，如果当前没有新的连接，也就是应用系统就会直接阻塞。而且，线程虽然是轻量级的进程，但是它也是个进程。这么做的问题主要集中在：</p>
+<p>a.过分依赖线程，线程的开销（每一个在<span data-type="color" style="color:rgb(102, 102, 102)">512K～1M之间</span>）在大量并发的情况下是不能够忽视的，而且线程的调度在操作系统底层也是一种昂贵的系统调用。<br>b. 当并发量上来后，线程的调度时间可能比线程的运行时间还长。这和我们关注于业务的速度快是相违背的。<br>      c<span data-type="color" style="color:#08979C">.</span><span data-type="color" style="color:#262626">容易造成锯齿状的系统负载。因为系统负载是用活动线程数或CPU核心数，一旦线程数量高但外部网络环境不是很稳定，就很容易造成大量请求的结果同时返回，激活大量阻塞线程从而使系统负载压力过大。（摘自</span><a target="_blank" rel="noopener" href="https://tech.meituan.com/nio.html">美团</a><span data-type="color" style="color:#262626">）</span></p>
+<h4 id="B-非阻塞型IO"><a href="#B-非阻塞型IO" class="headerlink" title="B.非阻塞型IO"></a>B.非阻塞型IO</h4><p>上面提到的会阻塞在Accept上，还有一种就是不断的轮训，询问是否有准备好数据。如图：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1543732282862-badd09fc-1e96-41d2-bf58-b495cbc9252c.png" alt="image.png | center | 747x414"></p>
+<p>这种IO的作用主要是告诉内核，在所请求的IO没有准备好的时候，不要把当前的进程投入睡眠，而是返回一个错误代码。 看似是很耗用CPU的操作。但是是可以结合着IO多路复用来一起使用的，让某一个线程来不断轮训访问IO，然后将轮询的结果返回，这样线程就不会阻塞了。</p>
+<h4 id="B-IO多路复用"><a href="#B-IO多路复用" class="headerlink" title="B.IO多路复用__"></a>B.IO多路复用__</h4><p>  上面的都是用户自己来轮训或者阻塞等待，这种感觉就好比等快递，前一个是站在门口一直等待，后一个是不断的打电话给快递员。但是正常生活中我们是不会像上面两种方式来做的。效率低而且浪费时间，我们正常做的事情其实是自己在家里玩耍，等快递员来了，给我们打电话，然后我们会去拿快递。其实这可以是一种理解多路复用的方式。IO需要的数据就相当于快递，每个人都是一个进程，快递员是CPU。在IO中如下图：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1543732300666-58372793-e4bb-4066-979a-dda809fa33ab.png" alt="image.png | center | 747x405"></p>
+<p> 这中模型要操作系统的支持，也就是select,poll,epoll,kequene.先大概了解下这写方法的用处，在稍微了解下他们的区别。示例代码（<a target="_blank" rel="noopener" href="https://github.com/TuitaKing/nioDemo/tree/master/src/main/java/com/tuitaking/nio">链接</a>）</p>
+<p>  上图可以看到，进程不再阻塞于IO的请求，但是没有阻塞了吗？阻塞仍然是存在的，只不过是阻塞在select这个方法的调用上。你可能奇怪，既然都是要阻塞，阻塞在select上和IO上的区别是什么，理论上，最大的好处就是可以让一个线程处理多个请求。这样比起多线程，系统的压力会比较小，线程切换少，而且，作为计算机中经常使用的分而治之的做法，每一个线程都用来处理自己关系的事情，会加快程序响应速度。</p>
+<h2 id="1-2-Reactor设计模式"><a href="#1-2-Reactor设计模式" class="headerlink" title="1.2 Reactor设计模式"></a>1.2 Reactor设计模式</h2><p> 这一节，我们可以跟着Doug Lea大佬的脚步，了解到Reactor设计模式和传统的好处和区别。他将网络服务，分布式系统归结为下面几种公用的方法：<br><strong>Read request</strong><br><strong>Decode request</strong><br><strong>Process service</strong><br><strong>Encode reply</strong><br><strong>Send reply</strong><br>图例：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1543733031804-7c0abe2e-d83a-45f2-a07e-f351c4d034b6.png" alt="image.png | left | 747x321"></p>
+<p>       这其实是我们上面提到的阻塞型IO模型，来请求，我们开一个线程，或者则塞，然后一条龙服务。如果请求阻塞在中间任意一个步骤，当前线程就会阻塞，甚至某些极端情况，比如某个公共对象被调用，会造成整个进程阻塞。<br>我们的目标只有一个——<del>没有蛀牙</del> （更快！）。Doug Lea的需求会仔细和严谨一些：</p>
+<ul>
+<li><p>低延时，其实就是尽量高响</p>
+</li>
+<li><p>能够满足最大峰值的处理请求，即在访问量突增时不至于宕机</p>
+</li>
+<li><p>可调控的服务处理，例如请求较多时可多加入一些服务处理线程</p>
+</li>
+</ul>
+<p>那么怎么做呢？Doug Lea在<a target="_blank" rel="noopener" href="http://gee.cs.oswego.edu/dl/cpjslides/nio.pdf">PPT</a>中说：Divide-and-conquer is usually the bestapproach for achieving any scalability goal——<strong>分而治之通常是构建高扩展性系统最佳解决方案__。<br>那么怎么个分法呢？首先是将IO的accept从整个处理中解放出来。因为等待接受是一切的开始，没有接受就没有后续的操作。这个时候Reactor就差不多可以上场啦。<br>        __第一种模型，单线程模型，如图：</strong></p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1543733775061-94800a28-9e7d-4118-8fb8-507e27df8584.png" alt="image.png | left | 747x293"></p>
+<p>       这种就是一个单线程的Reactor模型。具体的代码见<a target="_blank" rel="noopener" href="https://github.com/TuitaKing/nioDemo/tree/master/src/main/java/com/tuitaking/singleReactor">链接</a>。从图中可以看到，当前处理连接和连接后数据的处理逻辑是分开的。这种处理逻辑简单会非常快，而且可以处理的并发量比较高。<br>       他的缺点也是很显而易见的，所有的事情都让一个线程来进行，某个IO执行阻塞了，其他的程序也会受到影响。这个时候可以作出的修改为，将计算密集和IO处理剥夺出来，也就是将业务处理和连接分开。<br>       __第二种模型，线程池模型__：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1543899896188-9befea54-a555-4584-a4bd-1a2007fd8786.png" alt="image.png | center | 827x536"></p>
+<p>这种模型是将逻辑处理使用线程池，减少了逻辑处理对我们连接和发送的影响，代码见<a target="_blank" rel="noopener" href="https://github.com/TuitaKing/nioDemo/tree/master/src/main/java/com/tuitaking/multiReactor/threadpool">链接</a>。</p>
+<p>__第三种模型，多Reactor模型__：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1543900258974-6295b240-f175-4f31-8672-b14871fce107.png" alt="image.png | center | 827x564"></p>
+<p>这种模型其实是第二种模型的更加分治的做法，让每个reactor更加关注于自己关心的事情。代码见<a target="_blank" rel="noopener" href="https://github.com/TuitaKing/nioDemo/tree/master/src/main/java/com/tuitaking/multiReactor/threadpool">连接</a>。<br><strong>Netty的线程模型：</strong><br>    严格的说，上面三种netty是都支持的，但是用的最多的还是第二种，多线程模型。示意图：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1545055025727-62dd9b2d-8e1c-46b5-8aa1-5cb697391031.png" alt="image.png | left | 747x456"></p>
+<p>如果我们将右边的三个去掉 就会变成上面提到的单线程，将左边两个去掉一个，就是线程池模型。当然，talk is cheap。show code：<br>单线程模型：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">       EventLoopGroup bossGroup = new NioEventLoopGroup(1);</span><br><span class="line">try &#123;</span><br><span class="line">       ServerBootstrap b = new ServerBootstrap();</span><br><span class="line">       b.group(bossGroup)</span><br><span class="line">        .channel(NioServerSocketChannel.class)</span><br><span class="line">     &#125;catch(Exception e)&#123;&#125;   </span><br><span class="line">   .......</span><br></pre></td></tr></table></figure>
+<p>线程池模型：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"> EventLoopGroup bossGroup &#x3D; new NioEventLoopGroup(1);</span><br><span class="line">EventLoopGroup workerGroup &#x3D; new NioEventLoopGroup();</span><br><span class="line">try &#123;</span><br><span class="line">      ServerBootstrap b &#x3D; new ServerBootstrap();</span><br><span class="line">      b.group(bossGroup, workerGroup)</span><br><span class="line">       .channel(NioServerSocketChannel.class)</span><br><span class="line">     &#125;catch(Exception e)&#123;&#125;</span><br><span class="line">       ......</span><br></pre></td></tr></table></figure>
+<p>多线程模型：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"> EventLoopGroup bossGroup &#x3D; new NioEventLoopGroup(n);</span><br><span class="line">EventLoopGroup workerGroup &#x3D; new NioEventLoopGroup();</span><br><span class="line">try &#123;</span><br><span class="line">      ServerBootstrap b &#x3D; new ServerBootstrap();</span><br><span class="line">      b.group(bossGroup, workerGroup)</span><br><span class="line">       .channel(NioServerSocketChannel.class)</span><br><span class="line">     &#125;catch(Exception e)&#123;&#125;</span><br><span class="line">       ......</span><br></pre></td></tr></table></figure>
+
+<p>突然的代码，也许让你很困惑，但是，你只要能将上面的NioEventLoopGroup理解成上文提到的Selector就简单明了了。</p>
+<p><span data-type="background" style="background-color:#52C41A">课外读物</span>：<br>其实看过代码甚至<a target="_blank" rel="noopener" href="http://www.dre.vanderbilt.edu/~schmidt/PDF/reactor-siemens.pdf">论文</a>以后就会发现，Reactor是离不开select这个方法的。稍微浮光掠影的说下select。<br>1 select （<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Select_(Unix)">wiki</a>）<br>   select是linux系统级的一种方法，主要是用来实现多路复用，多路复用个人理解为线程的循环使用，以前执行某个方法只能使用一个线程，遇到阻塞只能等待，浪费CPU资源。所以，使用一个线程来关注事情的变化。具体的方法就不在这里讲了，有兴趣可以去了解下。他的原理是一个1024的数组（这个是写死的1024，修改必须编译linux内核），然后在数组中注册对应的感兴趣的事情（fd描述符），比如上面提到的连接，读，写操作。然后每次都将整个数据拉出来遍历下，感兴趣的事件（数据可读）就执行事件。<br>     2 poll<br>poll是select的进化体，他的作用是将上面的数组改成了链表。这样就没有了1024的限制了，其他的大致差不多。<br>     3 epoll<br>epoll是上面两个的进化体。上面的两个都要遍历整个数组或者链表才能获取到自己感兴趣的事情，每次注册感兴趣的事件（fd描述符）的时候是在用户态，执行遍历是在内核态。这样的copy在注册是事件多的时候的开销也是很大的。epoll解决了上面提到的这个问题，说到底是空间获取时间，他将每个感兴趣的事件写了一个回调函数，能够高速进程那些感兴趣的事件发生了，而且他使用的<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Mmap">mmp</a>的方式来进行数据传输，减少了不必要的传输。<br>举个例子，你去学校宿舍找女孩表白，前面两个都是告诉宿管阿姨，你要找女神，然后宿管阿姨对你说，小伙砸，我也不知道他在哪里，咱俩一个个找。然后你运气不好，女神刚好是最后一间的话，你表白成功了自然好，失败了，整栋楼的人都知道了。epoll就是，你来了，找到宿管阿姨，宿管阿姨说，我帮你查查他留在我这里的信息，然后很顺利的找到女神的位置。<br>PS：上文十分的简单，这里面的细节很多，各位有兴趣，可以自己去研究下。</p>
+<h2 id="1-3-JEMallco"><a href="#1-3-JEMallco" class="headerlink" title="1.3 JEMallco"></a>1.3 JEMallco</h2><pre><code>    接下来给大家介绍一个有意思的内存分配算法——[jemallco](https://www.bsdcan.org/2006/papers/jemalloc.pdf)。</code></pre>
+<p>  内存分配对平时大家的写代码而言，几乎就是黑盒子。所以也只是简单说下，因为Netty的<a target="_blank" rel="noopener" href="https://netty.io/wiki/new-and-noteworthy-in-4.0.html">文档</a>上面说4.0以后就采用了这个内存分配算法，而且打开<a target="_blank" rel="noopener" href="https://github.com/netty/netty/tree/4.1/buffer/src/main/java/io/netty/buffer">代码</a>，里面的很多关于内存池（Pool*）是不知道啥意思的。如果能够看下论文或者查查jemallco再去看就不会那么痛苦了。</p>
+<h3 id="1-3-1预备知识："><a href="#1-3-1预备知识：" class="headerlink" title="1.3.1预备知识："></a>1.3.1预备知识：</h3><p>       __外部碎片__：</p>
+<div data-type="alignment" data-value="justify" style="text-align:justify">
+  <div data-type="p">我们每次会在内存中开辟一块内存，用来作为堆，然后等到GC的时候回收部分。如果将堆看成整个运行的内存，内存按照顺序进行分配，在8K里面先分配4k，再分配4k，最后前面的4k被回收了，然后在他的位置上申请了4093B。现在就这8k连续内存而言，中间还剩下3B的内存空间，但是我们一般情况下，是不可能只申请3B这么点数据的，也就是说这3B，除非是前或者后面的数据被回收了。让他变大，不然不会被其他的JVM进程使用。这就是外部碎片。即：<strong>外部碎片指的是还没有被分配出去（不属于任何进程），但由于太小了无法分配给申请内存空间的新进程的内存空闲区域。</strong></div>
+</div>
+
+<p><strong>内部碎片：</strong></p>
+<div data-type="alignment" data-value="justify" style="text-align:justify">
+  <div data-type="p"> 结合上面的例子，我们现在看全部的内存，jvm是被分出去的一大块内存，这块内存理论上是不会被回收的             （只要jvm在运行），现在里面有3B是不能被JVM利用的。这3B对于JVM这块已经分配出去的内存而言的                 内部碎片。即：<strong>内部碎片就是已经被分配出去（能明确指出属于哪个进程）却不能被利用的内存空间</strong>；</div>
+</div>
+
+<p> <strong>伪共享：</strong><br>大家都知道我们在写代码的时候，针对一些读多写少的数据会进行cache，cpu也会，根据局部性原理，你请求的数据是内存中的0的位置，他会将0-16的数据都拉到自己的缓存里，缓存分很多级别，现在仅仅讨论最贵但是最快的L1 cache，大约64byte的数据，下面简称L1。首先，我们请求一个16大小的int数组中#0的数据，cpu（C1）会一次性将整个数组拉到L1中。接下来当前核心来访问这个数据中其他位置的速度会非常快。但是，如果这个数组#1的位置被其他的CPU核心C2请求了，相同的，另外一个核心的L1中也会有整个数组。如果C1修改了当前的数据#0，哪怕其他的位置他完全不关心，这个时候C1中的#0数据会和C2中的数据不一致，哪怕C2完全不关心这个位置的数据，但是CPU为了保存数据的一致性，会判断C2中的L1无效，而让C1将数据刷入内存，重新让C2加载。你可能会问，如果两个同时修改呢？CPU会有判断规则，让哪一个生效。总之，你放到L1的数据是没有用的。这对缓存造成极大的影响，而且并发的速度也会遇到瓶颈，因为C2其实相当于从内存拉了两次数据。我记得以前java中有个queue,采用了填充数据的办法，将某个参数强行扩大的L1一次性能填满的数据量。总之，说了一大堆，伪共享是一种为了提高速度带来的坏影响。而且随着并发数的增加，这个问题会愈来愈明显和性能下降。</p>
+<h3 id="1-3-2-JEMallco-基本原理"><a href="#1-3-2-JEMallco-基本原理" class="headerlink" title="1.3.2 JEMallco 基本原理"></a>1.3.2 JEMallco 基本原理</h3><h4 id="1-3-2-1-架构图（Facebook）："><a href="#1-3-2-1-架构图（Facebook）：" class="headerlink" title="1.3.2.1 架构图（Facebook）："></a>1.3.2.1 架构图（<a target="_blank" rel="noopener" href="https://www.facebook.com/notes/facebook-engineering/scalable-memory-allocation-using-jemalloc/480222803919">Facebook</a>）：</h4><p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1544856010229-1622e6dc-aa45-4b92-9f9d-a362f5173d16.png" alt="image.png | center | 559x536"></p>
+<h4 id="1-3-2-2-核心思想–分而治之"><a href="#1-3-2-2-核心思想–分而治之" class="headerlink" title="1.3.2.2 核心思想–分而治之"></a>1.3.2.2 核心思想–分而治之</h4><p>                  首先，我们将内存划分按照由大到小的顺序：<br>                         a 内存由一定数量的arenas进行管理<br>                         b 将每个arena分成chunks，后者记录分配信息<br>                         c chunk内部又包含很多的run，作为分配小块内存的基本单元<br>                         d <span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">run由pages组成, 最终被划分成一定数量的regions</span></span><br>                         f  <span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">对于small size的分配请求来说, 这些region就相当于user memory</span></span><br>               大致如下：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1544856534691-3d4eaecc-fce7-4237-bb80-bcfc198a4d6c.png" alt="image.png | center | 559x374"></p>
+<p> 可以把用户使用jemallco进行内存分配的过程类比从电商购物：<br>        <span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">电商向批发商批发大量整箱的货物，然后或进行拆分零售，或整块出售。整箱的内存称为chunk，</span></span>对<span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">于巨    大件内存订单，则直接出售chunk，对于小件和大件订单，则把chunk进一步拆分成run。其中chunk的大小4MB（可调）且为4MB对齐；run大小为page（默认大小为4KB）的整数倍。</span></span><br>         <span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">对于小件订单，并不是直接出售run，run更像是一个小件内存的仓库，并只满足同一大小的内存，其中每个可出售的小内存称为regions。</span></span><br>  <span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">如果订购的物品是小件（eg，一块橡皮、一本书或是一个微波炉等），那么直接从同城仓库送出；如果订购的物品时大件（eg,电视机、空调等），那么需要从区域（eg，华东区仓库）仓库送出；如果订购的物件是一个巨大件（eg,汽车、轮船等），需要从全国仓库送出</span></span><br>  <span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">同城仓库相当于tcache—线程独有的内存仓库；区域仓库相当于arena—多个线程共享的内存仓库；全国仓库类比全局变量指向的内存仓库，所有线程共用。</span></span><br> <strong>基本原理</strong><br>         首先问的是，为什么要分这么多的层级。其实很简单，就是减少上面提到的内部碎片，外部碎片和伪共享的问题。<br>   分出一大块数据后，里面如果是按一定数来分配，那么会存在的问题就是每一份大了，那么每一块内部碎片会很多，分小了，会增加计算和外部碎片。<br>          arena的作用就是减少伪共享，也就是每一个线程只会在指定的arena里面操作，这个线程分配出各个arena是有一定算法的，<span data-type="color" style="color:rgb(79, 79, 79)"><span data-type="background" style="background-color:rgb(255, 255, 255)">jemalloc采用循环方式来为线程分配arena，这样就可以保证每个arena被分配给了大致相同数量的线程</span></span>。最好的情况就是当前的arena只属于一个线程，那么里面的内存只会被自己的这个核心使用。因为是分配内存，一般情况下是不需要数据的交换的。<br>   每一个Arena中又有多个ChunkList，每一个chunk才是正儿八经分配内存的地方，他又分为更小的基础单元——Page（也就是上图中的run）,Netty中这个数值分别为一个Chunk为16M，一个Page为8k。也就是说，一个Chunk中又2048个Page。这里有个问题，就是内部碎片的问题，如果你只需要2B的内存，也给你分配一个Page，这简直是无法忍受的浪费，所以就有了上面提到的regins。所以，每一个Page可以分配为更小的内存块，按照局部性原理，将一个Page按照第一次来的数据的大小分割。每个Chunk的大概分配如下，下图为细分后的内存结构：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1544859258627-4c8f3db1-f303-4dae-87e0-73f55009a28a.png" alt="image.png | center | 302x384"></p>
+<p>如何管理，具体如何分配，我们切换成Netty的实现，因为我没有去研究过<a target="_blank" rel="noopener" href="https://github.com/jemalloc/jemalloc">jemalloc</a>的具体实现。不过理论上应该差不了多少。这里只能简单的说下，很多细节还要读者自己去看下代码，才能有自己的体会和感受。<br><strong>Netty内存的管理：</strong><br>Netty中分配主要使用了slab和buddy算法。其中buddy算法主要用于页内存的管理，slab则主要用于小块内存的分配。先来看看buddy算法。<br> __Bubby算法__：<br> 由于Netty的分配是由<code>PoolChunk</code>进行分配，<code>PoolChunk</code>是一个非常大的内存块（默认值为 16MB），这个内存块有一个完全平衡的二叉树来描述。</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2018/png/134776/1545897190212-44279084-5cef-478b-9b7e-533675bf764e.png" alt="image.png | left | 691x460"><br>  上面的二叉树，有几个基本点。叶子节点是一个page，也就是8k，总共可以分配8KB   2^11 。倒数第二层，根据满二叉树的规则，一共有2^10，也就是能分配2^10个16k的节点。依次类推，第n层能分配到<br><span data-type="color" style="color:rgb(0, 0, 0)"><span data-type="background" style="background-color:rgb(255, 255, 255)">2</span></span>^n 个<span data-type="color" style="color:rgb(0, 0, 0)"><span data-type="background" style="background-color:rgb(255, 255, 255)">chunkSize / 2</span></span>^n 大小的内存块。注意，这里的内存是大小往2的幂次方对齐的，比如一个请求的<br>8k+1B的内存请求，也会分配16k的内存大小。你可能会觉得这样有些浪费内存，造成内部碎片，但是这对整体的分配和回收带来的效率是客观的。如果不这么做，就需要特殊的字段，对象来管理每个分配的大小，造成回收和分配算法的复杂度增加（个人不严谨的想法）。下面来看看具体的分配：<br>1：由一个<code>byte[] memoryMap</code>来对内存页进行管理，父节点直接管理子节点， 这里maxOrder的默认值为11， 而第一个Page(pageSize = 8KB), 由<code>memoryMap[2^11=2048]</code>直接管理。这里节点是否分配由<code>value=memoryMap[index]</code>的值来表示，如果</p>
+<ul>
+<li><em>空闲</em>：memoryMap[id]=depth_of_id，空闲节点能分配的最大空间为自身代表的大小；</li>
+<li><em>部分分配</em>：memoryMap[id]&gt;depth_of_id，部分分配的节点至少有一个子节点已被分配，因此节点本身不能被直接分配，它能分配的最大空间为<code>memoryMap[id]</code>层上节点代表的空间大小；</li>
+<li><em>不可用</em>：memoryMap[id]=maxOrder+1，该节点及其子树被完全分配，没有任何子节点可以分配。<br>            PS：这段<a target="_blank" rel="noopener" href="https://github.com/netty/netty/blob/4.1/buffer/src/main/java/io/netty/buffer/PoolChunk.java">源代码</a>中也有详细的解释 ，感兴趣可以去看下。<br>2：如果要分配8KB的内存，则通过开始 <code>memoryMap[2^11=2048]——&gt; memoryMap[2^12-1=4095]</code>顺序查找未分配的Page。<br>3：需要分配大于PageSize的内存， 如16KB, 由于层级d=11每个节点管理一个pageSize=8KB的内存块，层级d=10管理两个d=11的节点，只需要分配一个层级为d=10的节点就可以分配一个16KB的内存, 则通过 <code>memoryMap[2^10=1024]——&gt; memoryMap[2^10-1=2047]</code>顺序查找未分配的节点<br>4：小于PageSize的内存分配，直接通过对一个Page的内存分割成<code>tinySubPageDirectCaches</code>与<code>smallSubPageDirectCaches</code>进行内存的分配</li>
+</ul>
+<p>稍微说下netty中找当前字段是在第几层，</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">int d &#x3D; maxOrder - (log2(normCapacity) - pageShifts);</span><br></pre></td></tr></table></figure>
+
+<p>因为按照2的幂次方对齐了， 所以log2（normCapacity）出来的结果为2的n次方，减去最小的pageShift=log2（8k）=13 则为当前相对底层的偏移，在用最大高度减下，自然就得到当前的深度了。<br>buddy算法保证了内存分配的连续性，不是指的使用过的内存能够对齐，而是每次分配都是连续的内存，回收也是连续的内存。当然，虽然叶子节点被分配了，也指定了分配了的位置，但是，这个时候内存还没有真正的分配，而是被组织起来了，真正的内存分配是在这个基础上建立起来的。感兴趣可以深入了解下。<a target="_blank" rel="noopener" href="https://github.com/netty/netty/blob/4.1/buffer/src/main/java/io/netty/buffer/PoolChunk.java">PoolChunk</a>的initBuf方法。源码中会遇到PoolChunkList,命名大致为q050，意义如下：</p>
+<p><img src="https://cdn.nlark.com/yuque/18/2019/png/134776/1546414879304-1c62bdc1-7a18-49ca-98fe-663a06b65905.png" alt="image.png | left | 691x295"></p>
+<p>一般情况下，会优先分配内存到Q50使用率的内存中，这是<a target="_blank" rel="noopener" href="https://github.com/jemalloc/jemalloc">jemall</a> 中建议的。而且PoolChunk的值是在list中流动的，也就是说一个PoolChunk最开始使用了1%，那么在Qinit中，等到使用了26%，就会流入到Q0中，为什么Q0中会包含Qinit但是不放在一起呢，这是为了回收，Qinit中的内存就算全部回收，也不会释放poolchunk，但是q0中会直接释放掉poolchunk。</p>
+<p><strong>slab算法</strong><br>  slab是针对小内存的一种分配方法，是一种上面page的分配，也就是页内分配算法。<br>  这个算法的核心思想就是按需分配，我们上面了解到，page的大小是8k，如果是1k的内存分配请求，直接分配8k很浪费，注意和上面8k+1B的区别，8k+1B多用8k主要是保证内存的连续性，在实现上是偏暴力的。但是slab一开始就是为了小于page的内存来设计的，1k的内存分配请求来了，就将8k均分成8份，每一份都是1k。他们最后会形成链表给Arean使用。这一块的代码设计到的大部分是字节的操作，因为最后是使用一个long也就是64位来进行内存的分配计算的。大家感兴趣可以去详细的研究下。这里不再赘述。</p>
+<p>大致上内存池和内存的管理，很粗的过一遍就是这个样子的。不过netty中有大量的位操作，比如一个很简单也很巧妙的写法，判断一个数是否位2的幂次方：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"> isPowerOfTwo(int val) &#123;</span><br><span class="line">    return (val &amp; -val) &#x3D;&#x3D; val;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这种方法可能不会加深写代码的速度，但是很好玩，感觉是在用机器语言编译人类语言（可以装逼）。</p>
+<p>Netty内部两个部分，Reactor和内存池就分享这么多，里面的细节比较多，还有很多的组件以后有机会在讲下吧。</p>
+<p> 除去上文中的超链接以外的参考博客和文章：<br>         <a target="_blank" rel="noopener" href="https://www.jianshu.com/u/dbcfb30ec5e4">https://www.jianshu.com/u/dbcfb30ec5e4</a><br>         <a target="_blank" rel="noopener" href="https://vinoit.me/2018/02/14/Netty%E5%86%85%E5%AD%98%E6%B1%A0/">https://vinoit.me/2018/02/14/Netty%E5%86%85%E5%AD%98%E6%B1%A0/</a><br>         <a target="_blank" rel="noopener" href="http://anyteam.me/netty-memory-allocation-buddy/">http://anyteam.me/netty-memory-allocation-buddy/</a><br>         <a target="_blank" rel="noopener" href="http://anyteam.me/netty-memory-allocation-slab/">http://anyteam.me/netty-memory-allocation-slab/</a></p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Netty/" rel="tag"># Netty</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/02/28/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6%E4%B8%8E%E6%8A%80%E6%9C%AF/%E7%AE%97%E6%B3%95/KMP%E7%AE%97%E6%B3%95/" rel="prev" title="KMP算法">
+      <i class="fa fa-chevron-left"></i> KMP算法
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/03/15/%E6%BA%90%E4%BB%A3%E7%A0%81/java/jdk/Agent%E4%B8%8EClassLoader/" rel="next" title="Agent与ClassLoader">
+      Agent与ClassLoader <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8D%B7%E9%A6%96%E8%AF%AD%EF%BC%9A"><span class="nav-number">1.</span> <span class="nav-text">卷首语：</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#1-0-%E4%BB%80%E4%B9%88%E6%98%AF-Netty%EF%BC%9F"><span class="nav-number">2.</span> <span class="nav-text">1.0 什么是 Netty？</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-1-%E9%A2%84%E5%A4%87%E7%9F%A5%E8%AF%86"><span class="nav-number">2.1.</span> <span class="nav-text">1.1 预备知识</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-1-I-O%E5%A4%8D%E7%94%A8%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.1.1.</span> <span class="nav-text">1.1.1   I&#x2F;O复用模型</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#A-%E9%98%BB%E5%A1%9E%E5%BC%8F-I-O%E6%A8%A1%E5%9E%8B"><span class="nav-number">2.1.1.1.</span> <span class="nav-text">A 阻塞式 I&#x2F;O模型</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#B-%E9%9D%9E%E9%98%BB%E5%A1%9E%E5%9E%8BIO"><span class="nav-number">2.1.1.2.</span> <span class="nav-text">B.非阻塞型IO</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#B-IO%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8"><span class="nav-number">2.1.1.3.</span> <span class="nav-text">B.IO多路复用__</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-2-Reactor%E8%AE%BE%E8%AE%A1%E6%A8%A1%E5%BC%8F"><span class="nav-number">2.2.</span> <span class="nav-text">1.2 Reactor设计模式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-3-JEMallco"><span class="nav-number">2.3.</span> <span class="nav-text">1.3 JEMallco</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-1%E9%A2%84%E5%A4%87%E7%9F%A5%E8%AF%86%EF%BC%9A"><span class="nav-number">2.3.1.</span> <span class="nav-text">1.3.1预备知识：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-2-JEMallco-%E5%9F%BA%E6%9C%AC%E5%8E%9F%E7%90%86"><span class="nav-number">2.3.2.</span> <span class="nav-text">1.3.2 JEMallco 基本原理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-3-2-1-%E6%9E%B6%E6%9E%84%E5%9B%BE%EF%BC%88Facebook%EF%BC%89%EF%BC%9A"><span class="nav-number">2.3.2.1.</span> <span class="nav-text">1.3.2.1 架构图（Facebook）：</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-3-2-2-%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3%E2%80%93%E5%88%86%E8%80%8C%E6%B2%BB%E4%B9%8B"><span class="nav-number">2.3.2.2.</span> <span class="nav-text">1.3.2.2 核心思想–分而治之</span></a></li></ol></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">22</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
