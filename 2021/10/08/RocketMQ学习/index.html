@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Muse","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="消息队列在计算机科学中，消息队列（英语：Message queue）是一种进程间通信或同一进程的不同线程间的通信方式，软件的贮列用来处理一系列的输入，通常是来自用户。消息队列提供了异步的通信协议，每一个贮列中的纪录包含详细说明的资料，包含发生的时间，输入设备的种类，以及特定的输入参数，也就是说：消息的发送者和接收者不需要同时与消息队列交互。消息会保存在队列中，直到接收者取回它。  来自wiki。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RocketMQ学习">
+<meta property="og:url" content="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/index.html">
+<meta property="og:site_name" content="Keanu Lee&#39;s Blog">
+<meta property="og:description" content="消息队列在计算机科学中，消息队列（英语：Message queue）是一种进程间通信或同一进程的不同线程间的通信方式，软件的贮列用来处理一系列的输入，通常是来自用户。消息队列提供了异步的通信协议，每一个贮列中的纪录包含详细说明的资料，包含发生的时间，输入设备的种类，以及特定的输入参数，也就是说：消息的发送者和接收者不需要同时与消息队列交互。消息会保存在队列中，直到接收者取回它。  来自wiki。">
+<meta property="og:locale">
+<meta property="og:image" content="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_architecture_1.png">
+<meta property="og:image" content="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_architecture_2.png">
+<meta property="og:image" content="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_design_1.png">
+<meta property="og:image" content="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_datafile.png">
+<meta property="article:published_time" content="2021-10-08T02:02:30.000Z">
+<meta property="article:modified_time" content="2021-10-08T12:01:07.768Z">
+<meta property="article:author" content="Keanu Lee">
+<meta property="article:tag" content="源码">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_architecture_1.png">
+
+<link rel="canonical" href="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
+
+  <title>RocketMQ学习 | Keanu Lee's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="Toggle navigation bar">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Keanu Lee's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>Home</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>Archives</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Keanu Lee">
+      <meta itemprop="description" content="千里之行，始于足下">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Keanu Lee's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          RocketMQ学习
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+              
+
+              <time title="Created: 2021-10-08 10:02:30 / Modified: 20:01:07" itemprop="dateCreated datePublished" datetime="2021-10-08T10:02:30+08:00">2021-10-08</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="消息队列"><a href="#消息队列" class="headerlink" title="消息队列"></a>消息队列</h2><p>在<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E8%AE%A1%E7%AE%97%E6%9C%BA%E7%A7%91%E5%AD%A6">计算机科学</a>中，<strong>消息队列</strong>（英语：Message queue）是一种<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E4%BF%A1">进程间通信</a>或同一进程的不同<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E7%BA%BF%E7%A8%8B">线程</a>间的通信方式，<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E8%BB%9F%E9%AB%94">软件</a>的<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E8%B2%AF%E5%88%97">贮列</a>用来处理一系列的<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E8%BE%93%E5%85%A5">输入</a>，通常是来自用户。消息队列提供了<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E7%95%B0%E6%AD%A5">异步</a>的<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE">通信协议</a>，每一个贮列中的纪录包含详细说明的资料，包含发生的时间，输入设备的种类，以及特定的输入参数，也就是说：消息的发送者和接收者不需要同时与消息队列交互。消息会保存在<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E9%98%9F%E5%88%97">队列</a>中，直到接收者取回它。  来自<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97">wiki</a>。</p>
+<p>同一进程的不同线程间通信使用比较多的就是线程池了，在jdk里面，线程池就是将runnable包装为一个个worker，然后放在队列中，由各种调度方式去调用worker。</p>
+<p>而跨进程间通信使用的比较多的就是<a target="_blank" rel="noopener" href="https://kafka.apache.org/">kafka</a>，<a target="_blank" rel="noopener" href="https://www.rabbitmq.com/">rabbitmq</a>，<a target="_blank" rel="noopener" href="https://rocketmq.apache.org/">rocketmq</a>，<a target="_blank" rel="noopener" href="https://activemq.apache.org/">activemq</a>等等消息队列中间件。</p>
+<h2 id="简单的MQ"><a href="#简单的MQ" class="headerlink" title="简单的MQ"></a>简单的MQ</h2><p>现在我们来考虑如果我们想自己手动撸一个mq，该怎么做？首先我们考虑对外提供的接口，无论是<code>rpc</code>还是<code>restfull</code>，由于我们是JAVA攻城狮，我们就提供国内最流行的<code>dubbo</code>服务接口。接口为<code>MySimpleMqServiceApi</code></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">MySimpleMqServiceApi</span> </span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">push</span><span class="params">(Message message)</span></span>;</span><br><span class="line">    <span class="function">Message <span class="title">poll</span><span class="params">()</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对外我们仅提供两个方法，一个是发送（push），一个是拉取（poll）</p>
+<p>然后定义下<code>Message</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">Message</span> </span>&#123;</span><br><span class="line">    <span class="keyword">byte</span>[] data;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">byte</span>[] getData() &#123;</span><br><span class="line">        <span class="keyword">return</span> data;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">setData</span><span class="params">(<span class="keyword">byte</span>[] data)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">this</span>.data = data;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>接下来就是对外提供服务了，因为我们是最最简单的，相当于站在最高的那个巨人的头顶的最高的头发丝上，所以我们现在完全不考虑内存，网络。也就是说现在的内存是无限的，网络是无限的，CPU是无限的，我们的主机永不crash，哪怕主机放到了黑洞，放在宇宙的边缘，他都可以在微秒级别给你返回,而且我们的用户永远不会给我们错误的数据，每次都是传送给我们最标准的数据。</p>
+<p>首先只想要一个人发送消息，一个人拉消息。由于是无限的队列，所以我们就用链表实现一个队列就可以了。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySimpleMqService</span> <span class="keyword">implements</span> <span class="title">MySimpleMqServiceApi</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> LinkedList&lt;Message&gt; store=<span class="keyword">new</span> LinkedList&lt;Message&gt;();</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">push</span><span class="params">(Message message)</span> </span>&#123;</span><br><span class="line">        store.push(message);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> Message <span class="title">poll</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span>(store.size()&gt;<span class="number">0</span>)&#123;</span><br><span class="line">         <span class="keyword">return</span>   store.poll();</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">null</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>现在，我们的最简单的MQ已经完成了。我们对外提供的功能和保障有：</p>
+<ul>
+<li>你发给我消息，我会给你保存，你放心，我这边的电脑是无敌的，肯定不会出任何问题</li>
+<li>消息你一收到，我就直接删除了。</li>
+</ul>
+<p>上面有啥问题呢？最简单的一个问题就是，大家都放在同一个队列里，不能按照自己想要的队列来进行拉去或者消费。于是咱拍拍脑袋，知道该怎么做了，做个隔离嘛，小意思,修改下api，我们的客户当然是宇宙最美好客户，说我们只要改好，他立马更新代码发版本。于是我们增加了<code>domain</code>信息，让他们自己去定义自己存放在那个域下面。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> mode.Message;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">MySimpleMqServiceApiV2</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">push</span><span class="params">(String domain,Message message)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="function">Message <span class="title">poll</span><span class="params">(String domain)</span></span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">MySimpleMqServiceV2</span> <span class="keyword">implements</span> <span class="title">MySimpleMqServiceApiV2</span> </span>&#123;</span><br><span class="line">    <span class="keyword">private</span> Map&lt;String, LinkedList&lt;Message&gt;&gt; mqStore=<span class="keyword">new</span> HashMap&lt;String, LinkedList&lt;Message&gt;&gt;();</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">push</span><span class="params">(String domain, Message message)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span>(<span class="keyword">null</span>==mqStore.get(domain))&#123;</span><br><span class="line">            mqStore.put(domain,<span class="keyword">new</span> LinkedList&lt;Message&gt;());</span><br><span class="line">        &#125;</span><br><span class="line">        mqStore.get(domain).push(message);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> Message <span class="title">poll</span><span class="params">(String domain)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span>  mqStore.get(domain).poll();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>这个mq，大家随便造。你说不支持高并发，没关系，将上面的全部整成并发的工具包。</p>
+<p>我们现在来看下，我们的假设多虎：</p>
+<ul>
+<li><p>主机永远不crash。</p>
+</li>
+<li><p>网络不限永远稳定</p>
+</li>
+<li><p>cpu，内存资源无限</p>
+</li>
+<li><p>磁盘？内存都无限了，主机用不crash还要磁盘做啥。</p>
+</li>
+<li><p>一个消息只会被同一个域下的消费者消费。</p>
+</li>
+<li><p>客户按照我们的想法来，呵护我们，他们甚至发送的消息都是自动有序的。说用dubbo，绝对不会说他们是sofa-rpc，也不会说他们语言不支持该协议。啥时候升级，他们立马帮你修改业务代码。</p>
+<p>…….</p>
+</li>
+</ul>
+<p>那么我们真正面对的问题是啥呢？</p>
+<ul>
+<li>电脑肯定不是无敌，可能随时crash，内存数据肯定丢失</li>
+<li>同一个消息可能被不同的域消费。</li>
+<li>客户不想使用<code>dubbo</code>来和我们交互，而且客户不想频繁的升级改代码。</li>
+<li>电脑的资源肯定是有限的，但是客户想要的qps是极其吓人的。</li>
+<li>…….</li>
+</ul>
+<p>所以我们现在需要解决的问题如下：</p>
+<ul>
+<li><p>如何保证数据在随时crash的机器上不丢失。</p>
+</li>
+<li><p>需要提供有序的队列，至少在单个broker中的有序，保证FIFO</p>
+</li>
+<li><p>需要多生产者多消费者一起。</p>
+</li>
+<li><p>需要考虑网络延迟，我们的服务可能突然被防火墙干掉了。</p>
+</li>
+<li><p>要为客户提供一个客户端，让他们使用起来如丝般柔滑，而且更新只需要他们动动小手指随便敲两下就ok。</p>
+</li>
+<li><p>需要保证qps。</p>
+</li>
+<li><p>需要保证大量的数据堆积</p>
+<p>….</p>
+</li>
+</ul>
+<h3 id="序章"><a href="#序章" class="headerlink" title="序章"></a>序章</h3><p>首先，我们需要保证的就是数据在随时crash的机器上不丢失，自然而然就是采用分布式集群的方式部署。分布式中的理论<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/CAP%E5%AE%9A%E7%90%86">CAP</a>.</p>
+<ul>
+<li>一致性（<strong>C</strong>onsistency） （等同于所有节点访问同一份最新的数据副本）</li>
+<li><a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E5%8F%AF%E7%94%A8%E6%80%A7">可用性</a>（<strong>A</strong>vailability）（每次请求都能获取到非错的响应——但是不保证获取的数据为最新数据）</li>
+<li><a target="_blank" rel="noopener" href="https://zh.wikipedia.org/w/index.php?title=%E7%BD%91%E7%BB%9C%E5%88%86%E5%8C%BA&action=edit&redlink=1">分区容错性</a>（<strong>P</strong>artition tolerance）（以实际效果而言，分区相当于对通信的时限要求。系统如果不能在时限内达成数据一致性，就意味着发生了分区的情况，必须就当前操作在C和A之间做出选择[<a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/CAP%E5%AE%9A%E7%90%86#cite_note-3">3]</a>。）</li>
+</ul>
+<p>由于消息一般情况下是不会有更新和删除的操作的，所以一致性在是我们最后才考虑的问题。主要是做到高可用和分区容错。</p>
+<p>可用性，我们都知道在使用无状态集群的时候，比如rpc的provider方，如果我们采用的是集群，那么如果provider某一台机器挂了，consumer可能会出错（crash时当前的链接断开），后面采用重试或者服务降级的方式是不会造成大面积报错甚至服务宕机的。那么作为消息队列，我们也要自然也想要对broker进行集群部署。</p>
+<p>现在我们已经有个集群了，里面部署了我们的程序。但是和上面的provider不一样的地方在于，其实我们更像是一个数据库，而不是逻辑处理的provider。于是，首先按照数据库的来做，自然会想到主从复制的方法保证数据不丢失。于是我们现在的逻辑首先是一台主broker，其他的作为从broker。数据全部走主broker，其他的只是负责在主broker挂掉或者掉线的时候升级为主节点对外提供服务。</p>
+<p>这种模式在数据量比较少，吞吐不大的时候是比较好的选择。毕竟虽然机器随时crash，但也不是每分钟一次，感谢运维的小伙伴让我们的服务器运行的比较稳定。</p>
+<p>但是我们想要解决的问题不是数据量小的情况。而是想要解决在特定的时候，突然大量的数据涌进来，每秒几万几十万的数据。如果使用数据库这种主从复制的方法，所有的message，都会被写n次，主broker的负载也会急剧上升。所以是不能单纯用主从复制来做的，或者说在某些情况下，比如日志收集等情况下，这种方式其实是不能符合欲求的。</p>
+<p>于是可以使用链式复制。其中链式复制可以理解为将broker 变成一个队列类型，大家穿成一串，大家都从自己的上游节点复制。这样就不再是都从主节点复制。但是每台机器上还是保存了所有的数据，如果在大量数据堆积的时候，数据量被放大很多倍。</p>
+<p>随着数据量增大，所有数据存放在同一台机器上的成本上升，收益也开始变小。如果我们每台机器上都只有部分数据，合在一起就是所有数据。然后选几台机器互为主从，大家都只保留部分数据的副本，在极端的情况下，也只会有部分的数据无法访问，但是整体式能够对外保证服务的。</p>
+<p>这就是分区。将数据分区，和数据库的里面的分库分表在某种意义上类似。</p>
+<p>我们可以设置一个注册中心，对外提供broker的地址和端口，还有broker存储的副本数据分布方式。主分区节点和备分区节点的路由信息。</p>
+<p>读者会发现，笔者一直在拿数据库和MQ做对比，其实MQ确实是一种比较特殊的数据库。我们现在老考虑下他的特殊性在哪里。</p>
+<ul>
+<li>不需要符合范式</li>
+<li>数据的读取是FIFO</li>
+<li>数据的读取方式比较单一，一般只有写入message和读取message，而且一般情况下是顺序读取和写入，也就是上面的FIFO</li>
+</ul>
+<p>看到顺序写入，在考虑到我们上面的复制和分区，自然就会想到wal日志系统。mq的文件其实也可以看作为在大数据中常常用来保证宕机也不丢数据的wal日志。因为他们本质上有非常类似的作用。</p>
+<p>wal日志的作用就是数据进来后，首先会在wal日志里面写入，由于是按照时间顺序，先接收到数据就先写入文件，如果出现处理过程宕机就可以从wal日志中恢复数据。</p>
+<p>mq也是顺序写入，在一般情况存储的位置也只和写入时间有关系。</p>
+<p>wal的优点在顺序写，顺序写磁盘的速度是几乎接近于内存的读写状态的。</p>
+<p>现在，我们mq的主要架构就比较清楚了。首先会有一个注册中心，主要用来保证注册broker的信息，有broker，他们会注册自己的信息到注册中心，然后消息生产方会在注册中心中拿到对应broker的ip地址，消息消费方也会从注册中心拉取broker的地址。当然，还有很多细节没有考虑，如负载均衡、读写分离、数据存储格式等等。</p>
+<p>我们看一下rocketmq的是否按照我们的想法来做的，看下彼此的架构的区别。</p>
+<h2 id="rocketmq"><a href="#rocketmq" class="headerlink" title="rocketmq"></a>rocketmq</h2><p>我们将带着上面的问题来看rocketmq是如何解决这些问题的，然后在看代码的过程中会去考虑为什么它要这么设计。首先，上面的模型目前普遍的称呼为三种，发送方为producer，消费方为consumer，消息存储叫broker。broker这个词是经纪人的意思，是为促成他人交易，充当订约居间人，为委托方提供订约的信息、机会和条件的主体。也就是说，他的主要作用是提供双方合作的一个主体，是不同于proxy会形式producer方的功能，agent会行使消费放的功能。</p>
+<p>目前基本上所有的mq架构都是由producer传递消息到broker，broker将消息存储起来，然后由consumer消费。消息存储的domain为topic。</p>
+<h4 id="官方文档"><a href="#官方文档" class="headerlink" title="官方文档"></a>官方文档</h4><p>首先看下<a target="_blank" rel="noopener" href="https://github.com/apache/rocketmq/tree/master/docs/cn">官方文档</a></p>
+<h5 id="名词解释"><a href="#名词解释" class="headerlink" title="名词解释"></a>名词解释</h5><h6 id="1-消息模型（Message-Model）"><a href="#1-消息模型（Message-Model）" class="headerlink" title="1 消息模型（Message Model）"></a>1 消息模型（Message Model）</h6><p>RocketMQ主要由 Producer、Broker、Consumer 三部分组成，其中Producer 负责生产消息，Consumer 负责消费消息，Broker 负责存储消息。Broker 在实际部署过程中对应一台服务器，每个 Broker 可以存储多个Topic的消息，每个Topic的消息也可以分片存储于不同的 Broker。Message Queue 用于存储消息的物理地址，每个Topic中的消息地址存储于多个 Message Queue 中。ConsumerGroup 由多个Consumer 实例构成。</p>
+<h6 id="2-消息生产者（Producer）"><a href="#2-消息生产者（Producer）" class="headerlink" title="2 消息生产者（Producer）"></a>2 消息生产者（Producer）</h6><p>负责生产消息，一般由业务系统负责生产消息。一个消息生产者会把业务应用系统里产生的消息发送到broker服务器。RocketMQ提供多种发送方式，同步发送、异步发送、顺序发送、单向发送。同步和异步方式均需要Broker返回确认信息，单向发送不需要。</p>
+<h6 id="3-消息消费者（Consumer）"><a href="#3-消息消费者（Consumer）" class="headerlink" title="3 消息消费者（Consumer）"></a>3 消息消费者（Consumer）</h6><p>负责消费消息，一般是后台系统负责异步消费。一个消息消费者会从Broker服务器拉取消息、并将其提供给应用程序。从用户应用的角度而言提供了两种消费形式：拉取式消费（pull）、推动式（push）消费。</p>
+<h6 id="4-主题（Topic）"><a href="#4-主题（Topic）" class="headerlink" title="4 主题（Topic）"></a>4 主题（Topic）</h6><p>表示一类消息的集合，每个主题包含若干条消息，每条消息只能属于一个主题，是RocketMQ进行消息订阅的基本单位。</p>
+<h6 id="5-代理服务器（Broker-Server）"><a href="#5-代理服务器（Broker-Server）" class="headerlink" title="5 代理服务器（Broker Server）"></a>5 代理服务器（Broker Server）</h6><p>消息中转角色，负责存储消息、转发消息。代理服务器在RocketMQ系统中负责接收从生产者发送来的消息并存储、同时为消费者的拉取请求作准备。代理服务器也存储消息相关的元数据，包括消费者组、消费进度偏移和主题和队列消息等。</p>
+<h6 id="6-名字服务（Name-Server）"><a href="#6-名字服务（Name-Server）" class="headerlink" title="6 名字服务（Name Server）"></a>6 名字服务（Name Server）</h6><p>名称服务充当路由消息的提供者。生产者或消费者能够通过名字服务查找各主题相应的Broker IP列表。多个Namesrv实例组成集群，但相互独立，没有信息交换。</p>
+<h6 id="7-拉取式消费（Pull-Consumer）"><a href="#7-拉取式消费（Pull-Consumer）" class="headerlink" title="7 拉取式消费（Pull Consumer）"></a>7 拉取式消费（Pull Consumer）</h6><p>Consumer消费的一种类型，应用通常主动调用Consumer的拉消息方法从Broker服务器拉消息、主动权由应用控制。一旦获取了批量消息，应用就会启动消费过程。</p>
+<h6 id="8-推动式消费（Push-Consumer）"><a href="#8-推动式消费（Push-Consumer）" class="headerlink" title="8 推动式消费（Push Consumer）"></a>8 推动式消费（Push Consumer）</h6><p>Consumer消费的一种类型，该模式下Broker收到数据后会主动推送给消费端，该消费模式一般实时性较高。</p>
+<h6 id="9-生产者组（Producer-Group）"><a href="#9-生产者组（Producer-Group）" class="headerlink" title="9 生产者组（Producer Group）"></a>9 生产者组（Producer Group）</h6><p>同一类Producer的集合，这类Producer发送同一类消息且发送逻辑一致。如果发送的是事务消息且原始生产者在发送之后崩溃，则Broker服务器会联系同一生产者组的其他生产者实例以提交或回溯消费。</p>
+<h6 id="10-消费者组（Consumer-Group）"><a href="#10-消费者组（Consumer-Group）" class="headerlink" title="10 消费者组（Consumer Group）"></a>10 消费者组（Consumer Group）</h6><p>同一类Consumer的集合，这类Consumer通常消费同一类消息且消费逻辑一致。消费者组使得在消息消费方面，实现负载均衡和容错的目标变得非常容易。要注意的是，消费者组的消费者实例必须订阅完全相同的Topic。RocketMQ 支持两种消息模式：集群消费（Clustering）和广播消费（Broadcasting）。</p>
+<h6 id="11-集群消费（Clustering）"><a href="#11-集群消费（Clustering）" class="headerlink" title="11 集群消费（Clustering）"></a>11 集群消费（Clustering）</h6><p>集群消费模式下,相同Consumer Group的每个Consumer实例平均分摊消息。</p>
+<h6 id="12-广播消费（Broadcasting）"><a href="#12-广播消费（Broadcasting）" class="headerlink" title="12 广播消费（Broadcasting）"></a>12 广播消费（Broadcasting）</h6><p>广播消费模式下，相同Consumer Group的每个Consumer实例都接收全量的消息。</p>
+<h6 id="13-普通顺序消息（Normal-Ordered-Message）"><a href="#13-普通顺序消息（Normal-Ordered-Message）" class="headerlink" title="13 普通顺序消息（Normal Ordered Message）"></a>13 普通顺序消息（Normal Ordered Message）</h6><p>普通顺序消费模式下，消费者通过同一个消息队列（ Topic 分区，称作 Message Queue） 收到的消息是有顺序的，不同消息队列收到的消息则可能是无顺序的。</p>
+<h6 id="14-严格顺序消息（Strictly-Ordered-Message）"><a href="#14-严格顺序消息（Strictly-Ordered-Message）" class="headerlink" title="14 严格顺序消息（Strictly Ordered Message）"></a>14 严格顺序消息（Strictly Ordered Message）</h6><p>严格顺序消息模式下，消费者收到的所有消息均是有顺序的。</p>
+<h6 id="15-消息（Message）"><a href="#15-消息（Message）" class="headerlink" title="15 消息（Message）"></a>15 消息（Message）</h6><p>消息系统所传输信息的物理载体，生产和消费数据的最小单位，每条消息必须属于一个主题。RocketMQ中每个消息拥有唯一的Message ID，且可以携带具有业务标识的Key。系统提供了通过Message ID和Key查询消息的功能。</p>
+<h6 id="16-标签（Tag）"><a href="#16-标签（Tag）" class="headerlink" title="16 标签（Tag）"></a>16 标签（Tag）</h6><p>为消息设置的标志，用于同一主题下区分不同类型的消息。来自同一业务单元的消息，可以根据不同业务目的在同一主题下设置不同标签。标签能够有效地保持代码的清晰度和连贯性，并优化RocketMQ提供的查询系统。消费者可以根据Tag实现对不同子主题的不同消费逻辑，实现更好的扩展性。</p>
+<p>上面是rocketmq支持的功能，Nameserver就是上文中说到的注册中心。这里比较奇怪，其实这些信息可以存放在zk里面。想比于zk，这里面的nameserver是无状态的，每个机器独立部署，互相之间不通信，这么做的好处很明显，就是每个无论挂了那个nameserver，只要有一个活着就可以使用，那么如果出现某些特殊的情况。比如当前的nameserver只能被部分的broker访问，是否会出现集群脑裂？后文我们会考虑下为什么不使用zk来作为注册中心。</p>
+<p>然后支持的模式有pull和push，一个是consumer主动拉信息，一个是producer主动将message推送到consumer方。支持广播模式，可以将同一个信息传送到所有的consumer方。</p>
+<p>支持tag，为消息设置标示，将同一个topic下的信息进行区分。为consumer方提供了一个group。</p>
+<p>为什么设置一个group呢，我们每一个topic下的consumer方订阅到topic就可以了。考虑一个场景就是如果没有group的话，如果我们将消费信息存储在consumer方，也就是consumer自己管理自己的消费信息，减少broker的职能，那么不便于做负载均衡和容错。因为broker本身是不知道自己下面的consumer方的消息的。如果将消费信息存储在broker方，那么需要为每一个consumer都记录下消费的信息，然后判断哪些是在一个集群下的，如何判断是否在一个集群下，如果单单只使用topic的维度，如果有多个集群在同时消费同一个topic，而且他们的处理逻辑不是一致的，也就是属于不同业务线，那么就无法区分目前的consumer是属于那个集群的。如果我们使用同一个group来消费不同topic，如果group的信息的记录维度是topic，即每个topic下都会记录对于的consumer group，那么我个人觉得也是可以正常使用的。如果consumergroup的信息和topic是分开或者不是属于topic的下级分类，那么肯定是会出问题的。这个问题可以留到后面看代码的时候，知晓consumergroup的维度的时候在来看。</p>
+<p>现在留下的问题（todo）：</p>
+<ul>
+<li>为什么不实用zk作为注册中心</li>
+<li>如果出现部分注册中心只能被部分消费者和生产者访问，是否会出现脑裂的情况，或者消息永远不会被访问</li>
+<li>consumer group和topic的关系</li>
+</ul>
+<h5 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h5><p><img src="/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_architecture_1.png"></p>
+<p>RocketMQ架构上主要分为四部分，如上图所示:</p>
+<ul>
+<li><p>Producer：消息发布的角色，支持分布式集群方式部署。Producer通过MQ的负载均衡模块选择相应的Broker集群队列进行消息投递，投递的过程支持快速失败并且低延迟。</p>
+</li>
+<li><p>Consumer：消息消费的角色，支持分布式集群方式部署。支持以push推，pull拉两种模式对消息进行消费。同时也支持集群方式和广播方式的消费，它提供实时消息订阅机制，可以满足大多数用户的需求。</p>
+</li>
+<li><p>NameServer：NameServer是一个非常简单的Topic路由注册中心，其角色类似Dubbo中的zookeeper，支持Broker的动态注册与发现。主要包括两个功能：Broker管理，NameServer接受Broker集群的注册信息并且保存下来作为路由信息的基本数据。然后提供心跳检测机制，检查Broker是否还存活；路由信息管理，每个NameServer将保存关于Broker集群的整个路由信息和用于客户端查询的队列信息。然后Producer和Conumser通过NameServer就可以知道整个Broker集群的路由信息，从而进行消息的投递和消费。NameServer通常也是集群的方式部署，各实例间相互不进行信息通讯。Broker是向每一台NameServer注册自己的路由信息，所以每一个NameServer实例上面都保存一份完整的路由信息。当某个NameServer因某种原因下线了，Broker仍然可以向其它NameServer同步其路由信息，Producer,Consumer仍然可以动态感知Broker的路由的信息。 </p>
+</li>
+<li><p>BrokerServer：Broker主要负责消息的存储、投递和查询以及服务高可用保证，为了实现这些功能，Broker包含了以下几个重要子模块。</p>
+<ol>
+<li>Remoting Module：整个Broker的实体，负责处理来自clients端的请求。</li>
+<li>Client Manager：负责管理客户端(Producer/Consumer)和维护Consumer的Topic订阅信息</li>
+<li>Store Service：提供方便简单的API接口处理消息存储到物理硬盘和查询功能。</li>
+<li>HA Service：高可用服务，提供Master Broker 和 Slave Broker之间的数据同步功能。</li>
+<li>Index Service：根据特定的Message key对投递到Broker的消息进行索引服务，以提供消息的快速查询。</li>
+</ol>
+</li>
+</ul>
+<h5 id="部署架构"><a href="#部署架构" class="headerlink" title="部署架构"></a>部署架构</h5><p><img src="/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_architecture_2.png"></p>
+<h5 id="RocketMQ-网络部署特点"><a href="#RocketMQ-网络部署特点" class="headerlink" title="RocketMQ 网络部署特点"></a>RocketMQ 网络部署特点</h5><ul>
+<li><p>NameServer是一个几乎无状态节点，可集群部署，节点之间无任何信息同步。</p>
+</li>
+<li><p>Broker部署相对复杂，Broker分为Master与Slave，一个Master可以对应多个Slave，但是一个Slave只能对应一个Master，Master与Slave 的对应关系通过指定相同的BrokerName，不同的BrokerId 来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。每个Broker与NameServer集群中的所有节点建立长连接，定时注册Topic信息到所有NameServer。 注意：当前RocketMQ版本在部署架构上支持一Master多Slave，但只有BrokerId=1的从服务器才会参与消息的读负载。</p>
+</li>
+<li><p>Producer与NameServer集群中的其中一个节点（随机选择）建立长连接，定期从NameServer获取Topic路由信息，并向提供Topic 服务的Master建立长连接，且定时向Master发送心跳。Producer完全无状态，可集群部署。</p>
+</li>
+<li><p>Consumer与NameServer集群中的其中一个节点（随机选择）建立长连接，定期从NameServer获取Topic路由信息，并向提供Topic服务的Master、Slave建立长连接，且定时向Master、Slave发送心跳。Consumer既可以从Master订阅消息，也可以从Slave订阅消息，消费者在向Master拉取消息时，Master服务器会根据拉取偏移量与最大偏移量的距离（判断是否读老消息，产生读I/O），以及从服务器是否可读等因素建议下一次是从Master还是Slave拉取。</p>
+</li>
+</ul>
+<p>结合部署架构图，描述集群工作流程：</p>
+<ul>
+<li>启动NameServer，NameServer起来后监听端口，等待Broker、Producer、Consumer连上来，相当于一个路由控制中心。</li>
+<li>Broker启动，跟所有的NameServer保持长连接，定时发送心跳包。心跳包中包含当前Broker信息(IP+端口等)以及存储所有Topic信息。注册成功后，NameServer集群中就有Topic跟Broker的映射关系。</li>
+<li>收发消息前，先创建Topic，创建Topic时需要指定该Topic要存储在哪些Broker上，也可以在发送消息时自动创建Topic。</li>
+<li>Producer发送消息，启动时先跟NameServer集群中的其中一台建立长连接，并从NameServer中获取当前发送的Topic存在哪些Broker上，轮询从队列列表中选择一个队列，然后与队列所在的Broker建立长连接从而向Broker发消息。</li>
+<li>Consumer跟Producer类似，跟其中一台NameServer建立长连接，获取当前订阅Topic存在哪些Broker上，然后直接跟Broker建立连接通道，开始消费消息。</li>
+</ul>
+<p>从部署来看，nameserver属于无状态，对外提供注册topic信息。producer在nameserver中获取topic的信息，且随机选择nameserver，建立长链接，定期获取topic的路由信息。并且向提供topic的master和slave建立长链接，定时发送心跳。如果出现。master的突然挂掉，没有自动从新选主，也就是说不会存在脑裂的情况。因为如果部分producer只能和主节点通信，nameserver并没有提供重新选出一个slave节点的能力，哪怕slave的id为1这种特殊的参与消息读负载的slave，也不会升级为master。如果部署的为多个master和多个slave的结构的话，可以理解为当前的消息会被发送到所有的master-slave的小集群中，而整个rocketmq的集群由多个小的master-slave集群组成。如果当前某一个master集群中的master挂掉，则可能会丢失部分数据（master中的消息没有被同步到slave中）。可以看到，rocketmq可以说通过一种极为特殊和简单暴力的方式保证了高可用和不会脑裂。因为没有主从切换，则不会出现小集群中master和slave数据不一致的问题，只会出现slave的数据不完全的问题。但是留下一个问题，如果是分区有序的消息该如何解决。可以解决上面的问题，没有主从切换，nameserver仅仅做心跳检查和存储topic的信息，所以zk是过重的存在。但是可能存在部分消息丢失（不能被消费）的问题，但是不会出现脑裂的情况，因为没有master切换的情况出现，一个master出问题，可以将消息发送到其他的master中。</p>
+<h4 id="设计"><a href="#设计" class="headerlink" title="设计"></a>设计</h4><h6 id="消息存储"><a href="#消息存储" class="headerlink" title="消息存储"></a>消息存储</h6><p><img src="/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_design_1.png" alt="架构设计"></p>
+<p>消息存储是RocketMQ中最为复杂和最为重要的一部分，本节将分别从RocketMQ的消息存储整体架构、PageCache与Mmap内存映射以及RocketMQ中两种不同的刷盘方式三方面来分别展开叙述。</p>
+<h6 id="1-1-消息存储整体架构"><a href="#1-1-消息存储整体架构" class="headerlink" title="1.1 消息存储整体架构"></a>1.1 消息存储整体架构</h6><p>消息存储架构图中主要有下面三个跟消息存储相关的文件构成。</p>
+<p>(1) CommitLog：消息主体以及元数据的存储主体，存储Producer端写入的消息主体内容,消息内容不是定长的。单个文件大小默认1G, 文件名长度为20位，左边补零，剩余为起始偏移量，比如00000000000000000000代表了第一个文件，起始偏移量为0，文件大小为1G=1073741824；当第一个文件写满了，第二个文件为00000000001073741824，起始偏移量为1073741824，以此类推。消息主要是顺序写入日志文件，当文件满了，写入下一个文件；</p>
+<p>(2) ConsumeQueue：消息消费队列，引入的目的主要是提高消息消费的性能，由于RocketMQ是基于主题topic的订阅模式，消息消费是针对主题进行的，如果要遍历commitlog文件中根据topic检索消息是非常低效的。Consumer即可根据ConsumeQueue来查找待消费的消息。其中，ConsumeQueue（逻辑消费队列）作为消费消息的索引，保存了指定Topic下的队列消息在CommitLog中的起始物理偏移量offset，消息大小size和消息Tag的HashCode值。consumequeue文件可以看成是基于topic的commitlog索引文件，故consumequeue文件夹的组织方式如下：topic/queue/file三层组织结构，具体存储路径为：$HOME/store/consumequeue/{topic}/{queueId}/{fileName}。同样consumequeue文件采取定长设计，每一个条目共20个字节，分别为8字节的commitlog物理偏移量、4字节的消息长度、8字节tag hashcode，单个文件由30W个条目组成，可以像数组一样随机访问每一个条目，每个ConsumeQueue文件大小约5.72M；</p>
+<p>(3) IndexFile：IndexFile（索引文件）提供了一种可以通过key或时间区间来查询消息的方法。Index文件的存储位置是：$HOME \store\index${fileName}，文件名fileName是以创建时的时间戳命名的，固定的单个IndexFile文件大小约为400M，一个IndexFile可以保存 2000W个索引，IndexFile的底层存储设计为在文件系统中实现HashMap结构，故rocketmq的索引文件其底层实现为hash索引。</p>
+<p>在上面的RocketMQ的消息存储整体架构图中可以看出，RocketMQ采用的是混合型的存储结构，即为Broker单个实例下所有的队列共用一个日志数据文件（即为CommitLog）来存储。RocketMQ的混合型存储结构(多个Topic的消息实体内容都存储于一个CommitLog中)针对Producer和Consumer分别采用了数据和索引部分相分离的存储结构，Producer发送消息至Broker端，然后Broker端使用同步或者异步的方式对消息刷盘持久化，保存至CommitLog中。只要消息被刷盘持久化至磁盘文件CommitLog中，那么Producer发送的消息就不会丢失。正因为如此，Consumer也就肯定有机会去消费这条消息。当无法拉取到消息后，可以等下一次消息拉取，同时服务端也支持长轮询模式，如果一个消息拉取请求未拉取到消息，Broker允许等待30s的时间，只要这段时间内有新消息到达，将直接返回给消费端。这里，RocketMQ的具体做法是，使用Broker端的后台服务线程—ReputMessageService不停地分发请求并异步构建ConsumeQueue（逻辑消费队列）和IndexFile（索引文件）数据。</p>
+<h6 id="1-2-页缓存与内存映射"><a href="#1-2-页缓存与内存映射" class="headerlink" title="1.2 页缓存与内存映射"></a>1.2 页缓存与内存映射</h6><p>页缓存（PageCache)是OS对文件的缓存，用于加速对文件的读写。一般来说，程序对文件进行顺序读写的速度几乎接近于内存的读写速度，主要原因就是由于OS使用PageCache机制对读写访问操作进行了性能优化，将一部分的内存用作PageCache。对于数据的写入，OS会先写入至Cache内，随后通过异步的方式由pdflush内核线程将Cache内的数据刷盘至物理磁盘上。对于数据的读取，如果一次读取文件时出现未命中PageCache的情况，OS从物理磁盘上访问读取文件的同时，会顺序对其他相邻块的数据文件进行预读取。</p>
+<p>在RocketMQ中，ConsumeQueue逻辑消费队列存储的数据较少，并且是顺序读取，在page cache机制的预读取作用下，Consume Queue文件的读性能几乎接近读内存，即使在有消息堆积情况下也不会影响性能。而对于CommitLog消息存储的日志数据文件来说，读取消息内容时候会产生较多的随机访问读取，严重影响性能。如果选择合适的系统IO调度算法，比如设置调度算法为“Deadline”（此时块存储采用SSD的话），随机读的性能也会有所提升。</p>
+<p>另外，RocketMQ主要通过MappedByteBuffer对文件进行读写操作。其中，利用了NIO中的FileChannel模型将磁盘上的物理文件直接映射到用户态的内存地址中（这种Mmap的方式减少了传统IO将磁盘文件数据在操作系统内核地址空间的缓冲区和用户应用程序地址空间的缓冲区之间来回进行拷贝的性能开销），将对文件的操作转化为直接对内存地址进行操作，从而极大地提高了文件的读写效率（正因为需要使用内存映射机制，故RocketMQ的文件存储都使用定长结构来存储，方便一次将整个文件映射至内存）。</p>
+<p>在消息存储的架构中图上我们可以看出，rocketmq的存储并不是按照topic来的，也就是所有的消息都会存储在同一个文件下，这个文件为CommitLog。这个文件最大为1G，为什么为1G呢？然后就是为了加快访问速度，将consumer的消费信息存储在了ConsumeQueue中。ConsumeQueue中存储的数据分别为8字节的commitlog物理偏移量、4字节的消息长度、8字节tag hashcode。由于字节的长度不唱过4字节，也就是说最长的单个消息不应该超过4GB，当然，肯定是</p>
+<p><img src="/2021/10/08/RocketMQ%E5%AD%A6%E4%B9%A0/rocketmq_datafile.png"></p>
+<p>上文中的unit-test就是定义的topic，全部使用默认配置，则会有8个（0-7）个queueid。按照架构设计文档，我们主要是从consumerqueue中获取到当前的消费信息，然后去对应的commitlog中获取消息。而consumerqueue中存储的数据只是一些源数据，也就是commitlog的物理偏移量，消息长度等信息。所以，我们是顺序写入commitlog文件，但是在某种意义上来说是随机读取commitlog文件的（毕竟拉消息不会是随机拉取，也是随机读取）。上文也提到，在顺序读或者写的时候，磁盘的数据是接近于内存的。是因为部分内存会被当作pagecache，然后异步将这部分数据刷入磁盘。如果在刷盘的时候机器crash掉了，那么内存中的数据肯定是丢失的，只有在机器本身carsh或者说服务器断电等情况下，该部分数据会丢失，如果只是进程挂点，则不会。内存映射就比较好理解一些，其实就是跳过了用户态和内核态，减少一次数据拷贝。一起来看，就可以理解为，首先会有pagecache将数据从磁盘映射到内存，然后由mmap映射到pagecache，而不需要将数据copy到内核态，在映射到pagecache。</p>
+<p>现在来看为什么commitlog的大小需要设置为1GB，主要也是由于FileChannel的map方法中设置了大小不能超过2147483647。也就是2GB左右的大小。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> MappedByteBuffer <span class="title">map</span><span class="params">(MapMode var1, <span class="keyword">long</span> position, <span class="keyword">long</span> size)</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">    <span class="keyword">this</span>.ensureOpen();</span><br><span class="line">    <span class="keyword">if</span> (var1 == <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> NullPointerException(<span class="string">&quot;Mode is null&quot;</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (position &lt; <span class="number">0L</span>) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;Negative position&quot;</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (size &lt; <span class="number">0L</span>) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;Negative size&quot;</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (position + size &lt; <span class="number">0L</span>) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;Position + size overflow&quot;</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (size &gt; <span class="number">2147483647L</span>) &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> IllegalArgumentException(<span class="string">&quot;Size exceeds Integer.MAX_VALUE&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">      .....</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>在阅读源码前，做一个上面内容的总结和遗留下来的问题：</p>
+<ul>
+<li>rocketmq使用了pagecache和内存映射加快读取速度</li>
+<li>rocketmq的部署需要先启动nameserver然后启动broker。nameserver属于无状态节点，broker中分为master（BrokerId为0）、slave（brokerID非0）。当有brokerid为1的时候，该节点会对外提供读服务。</li>
+<li>顺序消息的存储方式和发送、消费方式</li>
+<li>消费者和consumerqueue的对应消息目前来看是属于不支持一个consumerqueue 被多个消费者消费的情况。</li>
+</ul>
+<h3 id="源码"><a href="#源码" class="headerlink" title="源码"></a>源码</h3>
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%BA%90%E7%A0%81/" rel="tag"># 源码</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/12/24/%E6%BA%90%E4%BB%A3%E7%A0%81/netty/%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%87%E6%8D%A2%E5%87%86%E5%A4%87/" rel="prev" title="">
+      <i class="fa fa-chevron-left"></i> 
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97"><span class="nav-number">1.</span> <span class="nav-text">消息队列</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%AE%80%E5%8D%95%E7%9A%84MQ"><span class="nav-number">2.</span> <span class="nav-text">简单的MQ</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BA%8F%E7%AB%A0"><span class="nav-number">2.1.</span> <span class="nav-text">序章</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#rocketmq"><span class="nav-number">3.</span> <span class="nav-text">rocketmq</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%98%E6%96%B9%E6%96%87%E6%A1%A3"><span class="nav-number">3.0.1.</span> <span class="nav-text">官方文档</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%90%8D%E8%AF%8D%E8%A7%A3%E9%87%8A"><span class="nav-number">3.0.1.1.</span> <span class="nav-text">名词解释</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#1-%E6%B6%88%E6%81%AF%E6%A8%A1%E5%9E%8B%EF%BC%88Message-Model%EF%BC%89"><span class="nav-number">3.0.1.1.1.</span> <span class="nav-text">1 消息模型（Message Model）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#2-%E6%B6%88%E6%81%AF%E7%94%9F%E4%BA%A7%E8%80%85%EF%BC%88Producer%EF%BC%89"><span class="nav-number">3.0.1.1.2.</span> <span class="nav-text">2 消息生产者（Producer）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#3-%E6%B6%88%E6%81%AF%E6%B6%88%E8%B4%B9%E8%80%85%EF%BC%88Consumer%EF%BC%89"><span class="nav-number">3.0.1.1.3.</span> <span class="nav-text">3 消息消费者（Consumer）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#4-%E4%B8%BB%E9%A2%98%EF%BC%88Topic%EF%BC%89"><span class="nav-number">3.0.1.1.4.</span> <span class="nav-text">4 主题（Topic）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#5-%E4%BB%A3%E7%90%86%E6%9C%8D%E5%8A%A1%E5%99%A8%EF%BC%88Broker-Server%EF%BC%89"><span class="nav-number">3.0.1.1.5.</span> <span class="nav-text">5 代理服务器（Broker Server）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#6-%E5%90%8D%E5%AD%97%E6%9C%8D%E5%8A%A1%EF%BC%88Name-Server%EF%BC%89"><span class="nav-number">3.0.1.1.6.</span> <span class="nav-text">6 名字服务（Name Server）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#7-%E6%8B%89%E5%8F%96%E5%BC%8F%E6%B6%88%E8%B4%B9%EF%BC%88Pull-Consumer%EF%BC%89"><span class="nav-number">3.0.1.1.7.</span> <span class="nav-text">7 拉取式消费（Pull Consumer）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#8-%E6%8E%A8%E5%8A%A8%E5%BC%8F%E6%B6%88%E8%B4%B9%EF%BC%88Push-Consumer%EF%BC%89"><span class="nav-number">3.0.1.1.8.</span> <span class="nav-text">8 推动式消费（Push Consumer）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#9-%E7%94%9F%E4%BA%A7%E8%80%85%E7%BB%84%EF%BC%88Producer-Group%EF%BC%89"><span class="nav-number">3.0.1.1.9.</span> <span class="nav-text">9 生产者组（Producer Group）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#10-%E6%B6%88%E8%B4%B9%E8%80%85%E7%BB%84%EF%BC%88Consumer-Group%EF%BC%89"><span class="nav-number">3.0.1.1.10.</span> <span class="nav-text">10 消费者组（Consumer Group）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#11-%E9%9B%86%E7%BE%A4%E6%B6%88%E8%B4%B9%EF%BC%88Clustering%EF%BC%89"><span class="nav-number">3.0.1.1.11.</span> <span class="nav-text">11 集群消费（Clustering）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#12-%E5%B9%BF%E6%92%AD%E6%B6%88%E8%B4%B9%EF%BC%88Broadcasting%EF%BC%89"><span class="nav-number">3.0.1.1.12.</span> <span class="nav-text">12 广播消费（Broadcasting）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#13-%E6%99%AE%E9%80%9A%E9%A1%BA%E5%BA%8F%E6%B6%88%E6%81%AF%EF%BC%88Normal-Ordered-Message%EF%BC%89"><span class="nav-number">3.0.1.1.13.</span> <span class="nav-text">13 普通顺序消息（Normal Ordered Message）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#14-%E4%B8%A5%E6%A0%BC%E9%A1%BA%E5%BA%8F%E6%B6%88%E6%81%AF%EF%BC%88Strictly-Ordered-Message%EF%BC%89"><span class="nav-number">3.0.1.1.14.</span> <span class="nav-text">14 严格顺序消息（Strictly Ordered Message）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#15-%E6%B6%88%E6%81%AF%EF%BC%88Message%EF%BC%89"><span class="nav-number">3.0.1.1.15.</span> <span class="nav-text">15 消息（Message）</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#16-%E6%A0%87%E7%AD%BE%EF%BC%88Tag%EF%BC%89"><span class="nav-number">3.0.1.1.16.</span> <span class="nav-text">16 标签（Tag）</span></a></li></ol></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84"><span class="nav-number">3.0.1.2.</span> <span class="nav-text">架构</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E9%83%A8%E7%BD%B2%E6%9E%B6%E6%9E%84"><span class="nav-number">3.0.1.3.</span> <span class="nav-text">部署架构</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#RocketMQ-%E7%BD%91%E7%BB%9C%E9%83%A8%E7%BD%B2%E7%89%B9%E7%82%B9"><span class="nav-number">3.0.1.4.</span> <span class="nav-text">RocketMQ 网络部署特点</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%BE%E8%AE%A1"><span class="nav-number">3.0.2.</span> <span class="nav-text">设计</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#%E6%B6%88%E6%81%AF%E5%AD%98%E5%82%A8"><span class="nav-number">3.0.2.0.1.</span> <span class="nav-text">消息存储</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#1-1-%E6%B6%88%E6%81%AF%E5%AD%98%E5%82%A8%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-number">3.0.2.0.2.</span> <span class="nav-text">1.1 消息存储整体架构</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#1-2-%E9%A1%B5%E7%BC%93%E5%AD%98%E4%B8%8E%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84"><span class="nav-number">3.0.2.0.3.</span> <span class="nav-text">1.2 页缓存与内存映射</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%BA%90%E7%A0%81"><span class="nav-number">3.1.</span> <span class="nav-text">源码</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Keanu Lee</p>
+  <div class="site-description" itemprop="description">千里之行，始于足下</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">23</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">categories</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">tags</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Keanu Lee</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://muse.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a>
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
